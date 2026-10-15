@@ -1,0 +1,55 @@
+{
+ "t_ms": 1000.0,
+ "dt_ms": 0.1,
+ "rate_hz": 150.0,
+ "seed": 1,
+ "lesion": {
+  "idx": 69593,
+  "root_id": 720575940625045180,
+  "cell_type": "CB0910",
+  "side": "right",
+  "top_nt": "acetylcholine"
+ },
+ "scenarios": {
+  "sugar": {
+   "spikes": 15564,
+   "active": 351,
+   "proboscis_spikes": 921,
+   "proboscis_first_ms": 45.300000000000004,
+   "mn9_hz": [
+    36.0,
+    55.0
+   ]
+  },
+  "bitter": {
+   "spikes": 4011,
+   "active": 57,
+   "proboscis_spikes": 0,
+   "proboscis_first_ms": null,
+   "mn9_hz": [
+    0.0,
+    0.0
+   ]
+  },
+  "water": {
+   "spikes": 5194,
+   "active": 86,
+   "proboscis_spikes": 0,
+   "proboscis_first_ms": null,
+   "mn9_hz": [
+    0.0,
+    0.0
+   ]
+  },
+  "sugar_lesion": {
+   "spikes": 11086,
+   "active": 330,
+   "proboscis_spikes": 223,
+   "proboscis_first_ms": 45.300000000000004,
+   "mn9_hz": [
+    40.0,
+    53.0
+   ]
+  }
+ }
+}
