@@ -4,10 +4,11 @@
 двойным кликом (file://), а fetch() JSON там браузер не разрешит.
 
 Что внутри:
-  background   — все 138 639 нейронов, вид спереди (x вправо, y вниз),
-                 base64 от Uint16Array [x0, y0, x1, y1, ...] в сетке 0..GRID
+  background   — все 138 639 нейронов в 3D (x вправо, y вниз, z вглубь),
+                 base64 от Uint16Array [x0, y0, z0, x1, ...] в сетке 0..GRID
   neurons      — нейроны, разрядившиеся хоть в одном сценарии:
                  координаты, группа-инструмент, тип клетки, роль
+  edges        — все связи между ними: [пре, пост, синапсы, знак +1/-1]
   scenarios    — для каждого: точный растр (t в шагах 0.1 мс, локальный индекс),
                  счёт спайков по группам в окнах по 100 мс (для звука)
                  и спайки хоботка по окнам, итог outcome
@@ -40,8 +41,8 @@ def main():
     dt = summary['dt_ms']
     n_win = int(round(summary['t_ms'] / WINDOW_MS))
 
-    # проекция: вид спереди, общий масштаб по осям
-    xy = c.pos[:, :2].astype(np.float64)
+    # общий масштаб по всем трём осям
+    xy = c.pos.astype(np.float64)
     lo = xy.min(0)
     scale = GRID / (xy.max(0) - lo).max()
     q = np.clip(np.round((xy - lo) * scale), 0, GRID).astype('<u2')
@@ -67,12 +68,19 @@ def main():
     neurons = {
         'id': active.tolist(),
         'root_id': [str(r) for r in c.root_ids[active]],
-        'x': q[active, 0].tolist(), 'y': q[active, 1].tolist(),
+        'x': q[active, 0].tolist(), 'y': q[active, 1].tolist(), 'z': q[active, 2].tolist(),
         'group': group.tolist(),
         'type': [c.label('cell_type', i) for i in active],
         'side': [c.label('side', i) for i in active],
         'role': role,
     }
+
+    # связи между активными нейронами — "провода" на карте
+    is_act = np.zeros(c.n, bool); is_act[active] = True
+    src = np.repeat(np.arange(c.n), np.diff(c.indptr))
+    em = is_act[src] & is_act[c.targets]
+    edges = [[local[int(a)], local[int(b)], int(k), 1 if c.excitatory[a] else -1]
+             for a, b, k in zip(src[em], c.targets[em], c.nsyn[em])]
 
     prob_local = np.array([local[i] for i in io['outputs']['proboscis'] if i in local])
     sugar_prob = summary['scenarios']['sugar']['proboscis_spikes']
@@ -109,6 +117,7 @@ def main():
         'groups': list(GROUPS),
         'background': base64.b64encode(q.tobytes()).decode('ascii'),
         'neurons': neurons,
+        'edges': edges,
         'lesion': {**summary['lesion'], 'local': local[lesion]},
         'scenarios': scen,
         'attribution': attribution,
@@ -117,7 +126,8 @@ def main():
     path.write_text('// Сгенерировано src/export.py. Данные: FlyWire 783, CC-BY 4.0.\n'
                     'window.FLY_DATA = ' + json.dumps(data, separators=(',', ':'), ensure_ascii=False) + ';\n')
 
-    print(f'активных нейронов на карте: {len(active)}, фон: {c.n:,}, поле {size[0]}x{size[1]}')
+    print(f'активных нейронов на карте: {len(active)}, связей между ними {len(edges)}, '
+          f'фон: {c.n:,}, поле {size[0]}x{size[1]}x{size[2]}')
     print(f'{path.name}: {path.stat().st_size / 1e6:.2f} МБ')
     print(f"{'сценарий':<13} {'спайков':>7}  " + '  '.join(f'{g:>10}' for g in GROUPS) + '   хоботок по окнам 100 мс        итог')
     for name, s in scen.items():
