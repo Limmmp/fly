@@ -18,7 +18,13 @@ body {
 header { grid-column: 1 / -1; }
 h1 { margin: 0; font-size: 56px; }
 header p { margin: 4px 0 0; font-size: 28px; color: var(--muted); }
-.stage { display: grid; grid-template-rows: auto auto 1fr; gap: 20px; min-height: 0; }
+.stage { display: grid; grid-template-rows: auto auto auto 1fr; gap: 20px; min-height: 0; }
+.modes { display: flex; gap: 16px; }
+.modes button { font: inherit; font-size: 28px; font-weight: 700; padding: 10px 22px; border: 0; border-radius: 20px;
+  background: var(--panel); color: var(--text); cursor: pointer; }
+.modes button.on { background: var(--gold); color: #1a1a1a; }
+.modes kbd { font: 24px monospace; opacity: .5; margin-left: 8px; }
+.breakdown { font-size: 24px; color: var(--muted); text-align: center; }
 .lights { display: flex; justify-content: center; gap: 22px; padding: 26px; background: #050608; border-radius: 28px; }
 .pod { background: #111; border-radius: 18px; padding: 14px; display: grid; gap: 12px; }
 .lamp { width: 92px; height: 92px; border-radius: 50%; background: var(--off); transition: background .04s, box-shadow .04s; }
@@ -30,7 +36,7 @@ header p { margin: 4px 0 0; font-size: 28px; color: var(--muted); }
 .race.hidden { visibility: hidden; }
 .lane { display: grid; grid-template-columns: 170px 1fr 170px; align-items: center; gap: 16px; font-size: 32px; }
 .track { height: 52px; background: #0b0e22; border-radius: 26px; overflow: hidden; }
-.bar { height: 100%; width: 0; border-radius: 26px; transition: width 1.2s cubic-bezier(.2, .8, .2, 1); }
+.bar { height: 100%; width: 0; border-radius: 26px; min-width: 8px; }
 .bar.fly { background: var(--green); }
 .bar.you { background: var(--gold); }
 .lane b { font-variant-numeric: tabular-nums; text-align: right; }
@@ -67,14 +73,17 @@ canvas { position: fixed; right: 400px; top: 150px; width: 160px; height: 120px;
 </header>
 
 <section class="stage">
+  <div class="modes" id="modes"></div>
   <div class="lights" id="lights"></div>
   <div class="message" id="msg">Нажми, чтобы начать</div>
   <div class="race hidden" id="race">
     <div class="lane"><span>🪰 Муха</span><div class="track"><div class="bar fly" id="bar-fly"></div></div><b id="t-fly"></b></div>
     <div class="lane"><span>🧒 Ты</span><div class="track"><div class="bar you" id="bar-you"></div></div><b id="t-you"></b></div>
+    <div class="breakdown" id="breakdown"></div>
     <div class="verdict" id="verdict"></div>
     <div class="fact">У мухи есть нейрон-великан <b>DNp01</b> — толстый «провод» от глаз к ногам.
-      Сигнал по нему бежит 0,3 мс, и муха взлетает меньше чем за 7 мс.</div>
+      Сигнал по нему бежит 0,3 мс, а прыжок занимает меньше 7 мс.
+      В темноте глаза дают слабый сигнал — и DNp01 включается позже.</div>
   </div>
 </section>
 
@@ -87,14 +96,18 @@ canvas { position: fixed; right: 400px; top: 150px; width: 160px; height: 120px;
 
 <canvas id="fly" width="320" height="240"></canvas>
 
+<script src="escape_data.js"></script>
 <script>
 'use strict';
-// Время мухи: короткий режим взлёта через гигантское волокно < 7 мс
-// (von Reyn et al. 2014, Nat Neurosci; Chai et al. 2025, PMC12115834:
-// "short (< 7 ms) mode", проведение по GF 0.29 мс, GF -> мышца TTM < 1 мс).
-const FLY_MS = 7;
-const LIGHT_STEP_MS = 1000;           // огни загораются раз в секунду, как в F1
-const HOLD_MIN_MS = 200, HOLD_MAX_MS = 3000;  // случайная пауза перед "огни погасли"
+// Время мухи = задержка LPLC2 -> DNp01 по нашей LIF-модели (src/escape.py,
+// arcade/escape_data.js) + взлёт после спайка DNp01: короткий режим < 7 мс
+// (von Reyn et al. 2014; Chai et al. 2025, PMC12115834). Если файла с
+// моделью нет, остаётся только взлёт.
+const MODES = (window.ESCAPE && window.ESCAPE.modes) ||
+  [{ key: 'day', title: 'Яркий день', brain_ms_all: [0], takeoff_ms: 7 }];
+const LIGHT_STEP_MIN_MS = 700, LIGHT_STEP_MAX_MS = 1300;  // огни загораются с неровным шагом — ритм не угадать
+const HOLD_MIN_MS = 200, HOLD_MAX_MS = 3000;  // случайная пауза перед "огни погасли", как в F1
+const REPLAY_SLOW = 10;               // замедленный повтор: 1 мс = 10 мс экрана, одинаково для обоих
 const TOO_SLOW_MS = 2000;
 const STORE_KEY = 'fly-arcade-records';
 
@@ -114,6 +127,21 @@ let state = 'ready';   // ready -> lights -> go -> result | false
 let timers = [];
 let goTime = 0;
 let flyJumpAt = 0;
+let mode = MODES[0];
+let flyMs = 0, flyBrainMs = 0;
+
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('.modes button').forEach(b => b.classList.toggle('on', b.dataset.key === m.key));
+}
+MODES.forEach((m, k) => {
+  const b = document.createElement('button');
+  b.dataset.key = m.key;
+  b.innerHTML = `${['☀️', '🌆', '🌙'][k] || ''} ${m.title}<kbd>${k + 1}</kbd>`;
+  b.addEventListener('pointerdown', e => { e.stopPropagation(); if (state !== 'lights' && state !== 'go') setMode(m); });
+  $('modes').appendChild(b);
+});
+setMode(MODES[0]);
 
 function setLights(n) {
   lamps.forEach((l, i) => l.classList.toggle('on', i < n));
@@ -129,16 +157,23 @@ function startRound() {
   $('msg').className = 'message';
   $('msg').innerHTML = 'Внимание…';
   setLights(0);
-  for (let i = 1; i <= 5; i++) timers.push(setTimeout(() => setLights(i), i * LIGHT_STEP_MS));
+  let t = 0;
+  for (let i = 1; i <= 5; i++) {
+    t += LIGHT_STEP_MIN_MS + Math.random() * (LIGHT_STEP_MAX_MS - LIGHT_STEP_MIN_MS);
+    timers.push(setTimeout(() => setLights(i), t));
+  }
   const hold = HOLD_MIN_MS + Math.random() * (HOLD_MAX_MS - HOLD_MIN_MS);
-  timers.push(setTimeout(lightsOut, 5 * LIGHT_STEP_MS + hold));
+  timers.push(setTimeout(lightsOut, t + hold));
 }
 
 function lightsOut() {
   setLights(0);
   goTime = performance.now();
   state = 'go';
-  flyJumpAt = goTime + FLY_MS;
+  // муха в этом раунде — один из прогонов модели в выбранном режиме
+  flyBrainMs = mode.brain_ms_all[Math.floor(Math.random() * mode.brain_ms_all.length)];
+  flyMs = flyBrainMs + mode.takeoff_ms;
+  flyJumpAt = goTime + flyMs;
   $('msg').innerHTML = 'ЖМИ!';
   timers.push(setTimeout(() => { if (state === 'go') finish(null); }, TOO_SLOW_MS));
 }
@@ -160,16 +195,25 @@ function finish(ms) {
   }
   const rec = saveRecord(ms);
   $('msg').innerHTML = `${Math.round(ms)} мс<small>${rating(ms)}${rec ? ' · Новый рекорд дня! 🏆' : ''}</small>`;
-  // полосы: шкала по времени игрока, муха почти не видна — в этом и суть
   $('race').classList.remove('hidden');
-  $('bar-fly').style.width = '0'; $('bar-you').style.width = '0';
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    $('bar-fly').style.width = `${Math.max(1.5, 100 * FLY_MS / ms)}%`;
-    $('bar-you').style.width = '100%';
-  }));
-  $('t-fly').textContent = `${FLY_MS} мс`;
+  $('t-fly').textContent = `${Math.round(flyMs)} мс`;
   $('t-you').textContent = `${Math.round(ms)} мс`;
-  $('verdict').textContent = `Муха быстрее тебя в ${Math.round(ms / FLY_MS)} раз!`;
+  $('breakdown').textContent = `Муха: мозг ${flyBrainMs.toFixed(1)} мс (DNp01) + прыжок ${mode.takeoff_ms} мс · повтор замедлен в ${REPLAY_SLOW} раз`;
+  $('verdict').textContent = `Муха быстрее тебя в ${Math.round(ms / flyMs)} раз!`;
+  replay(flyMs, ms);
+}
+
+// замедленный повтор: оба участника на одной шкале времени
+function replay(fly, you) {
+  const t0 = performance.now();
+  const total = Math.max(fly, you);
+  (function frame(now) {
+    if (state !== 'result') return;
+    const t = (now - t0) / REPLAY_SLOW;  // мс "реального" времени гонки
+    $('bar-fly').style.width = `${100 * Math.min(t, fly) / total}%`;
+    $('bar-you').style.width = `${100 * Math.min(t, you) / total}%`;
+    if (t < total) requestAnimationFrame(frame);
+  })(t0);
 }
 
 function rating(ms) {
@@ -220,12 +264,14 @@ window.addEventListener('keydown', e => {
     return;
   }
   if (e.repeat) return;
+  const mk = MODES[+e.key - 1];
+  if (mk) { if (state !== 'lights' && state !== 'go') setMode(mk); return; }
   if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); press(e); }
 });
 window.addEventListener('pointerdown', press);
 window.addEventListener('contextmenu', e => e.preventDefault());
 
-// ---------- муха: сидит, а через FLY_MS после погасания огней улетает ----------
+// ---------- муха: сидит, а через flyMs после погасания огней улетает ----------
 const fc = $('fly').getContext('2d');
 function drawFly(now) {
   fc.clearRect(0, 0, 320, 240);
