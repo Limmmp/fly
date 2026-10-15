@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Муха в проводах — большой экран</title>
+<link rel="stylesheet" href="big.css">
+</head>
+<body>
+<!-- Вариант для большого монитора: мозг на весь экран, панели поверх -->
+<section class="brain">
+  <canvas id="brain"></canvas>
+  <div id="tags"></div>
+</section>
+
+<header class="glass head">
+  <h1>Муха в проводах</h1>
+  <p>Настоящий мозг мухи — <b>138 639</b> нейронов</p>
+  <div id="status" class="status"></div>
+  <div class="credits">FlyWire 783 (CC-BY 4.0) · модель Shiu et al. 2024 ·
+    <button id="info-btn" class="link"><span class="ico-s" data-icon="info"></span>источники</button></div>
+</header>
+
+<aside class="side">
+  <div class="glass flybox">
+    <canvas id="fly"></canvas>
+    <div class="meter"><span>Хоботок</span><div class="meter-bar"><div id="meter-fill"></div></div></div>
+  </div>
+  <div id="result" class="glass result hidden">
+    <div id="result-icon" class="result-icon"></div>
+    <div>
+      <div id="result-title" class="result-title"></div>
+      <div id="result-text" class="result-text"></div>
+    </div>
+  </div>
+</aside>
+
+<div class="counters">
+  <div><span id="cnt-neurons">0</span><small>нейронов вспыхнуло</small></div>
+  <div><span id="cnt-spikes">0</span><small>сигналов</small></div>
+</div>
+
+<nav class="controls glass">
+  <button class="stim" data-stim="sugar"><span class="ico" data-icon="sugar"></span>Сахар<kbd>1</kbd></button>
+  <button class="stim" data-stim="bitter"><span class="ico" data-icon="bitter"></span>Горькое<kbd>2</kbd></button>
+  <button class="stim" data-stim="water"><span class="ico" data-icon="water"></span>Вода<kbd>3</kbd></button>
+  <span class="sep"></span>
+  <button id="lesion" class="lesion" aria-pressed="false"><span class="ico" data-icon="lesion"></span><b id="lesion-text">Сломать нейрон</b><kbd>4</kbd></button>
+</nav>
+
+
+<div id="info" class="overlay hidden"><div class="overlay-box">
+  <pre id="info-text"></pre>
+  <button id="info-close" class="big">Закрыть</button>
+</div></div>
+
+<script>
+  // мозг сдвигаем влево: справа его закрывает панель с мухой
+  window.STAND_OPTS = { shiftX: 0.11 };
+</script>
+<script src="vendor/three.min.js"></script>
+<script src="icons.js"></script>
+<script src="../data/export/fly_data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

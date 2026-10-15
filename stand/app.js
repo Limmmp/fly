@@ -195,8 +195,10 @@ const flyCanvas = $('fly');
 const flyR = new THREE.WebGLRenderer({ canvas: flyCanvas, antialias: true, alpha: true });
 const flyScene = new THREE.Scene();
 const flyCam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
-flyCam.position.set(-1.0, 0.9, 4.6);
-flyCam.lookAt(0.15, -0.3, 0);
+const FLY_TARGET = new THREE.Vector3(0.3, -0.3, 0);
+const FLY_DIR = new THREE.Vector3(-1.0, 0.9, 4.6).sub(FLY_TARGET);
+const FLY_DIST = FLY_DIR.length();
+FLY_DIR.normalize();
 flyScene.add(new THREE.HemisphereLight(0xfff4e0, 0x202040, 0.9));
 const sun = new THREE.DirectionalLight(0xffffff, 1.1); sun.position.set(-2, 4, 3); flyScene.add(sun);
 const rim = new THREE.DirectionalLight(0x6fa8ff, 0.8); rim.position.set(3, 1, -4); flyScene.add(rim);
@@ -331,7 +333,7 @@ function start(stim) {
   clearTimeout(idleTimer);
   $('result').classList.add('hidden');
   document.querySelectorAll('.stim').forEach(b => b.classList.toggle('active', b.dataset.stim === stim));
-  $('status').textContent = { sugar: '🍬 Сладкое! Сигнал бежит по мозгу…', bitter: '🍋 Горькое! Сигнал бежит по мозгу…', water: '💧 Вода! Сигнал бежит по мозгу…' }[stim];
+  setStatus(stim, { sugar: 'Сладкое! Сигнал бежит по мозгу…', bitter: 'Горькое! Сигнал бежит по мозгу…', water: 'Вода! Сигнал бежит по мозгу…' }[stim]);
   for (const [k, m] of Object.entries(foods)) m.visible = k === stim;
   if (window.FlySound) window.FlySound.play(data, D, SLOW);
 }
@@ -342,7 +344,7 @@ function finish() {
   idleTimer = setTimeout(() => {
     camGoal = VIEW_FULL;
     $('result').classList.add('hidden');
-    $('status').textContent = 'Выбери, чем угостить муху 👇';
+    setStatus('down', 'Выбери, чем угостить муху');
     document.querySelectorAll('.stim').forEach(b => b.classList.remove('active'));
     for (const m of Object.values(foods)) m.visible = false;
     play = null;
@@ -353,21 +355,33 @@ function showResult(stim, s) {
   const n = s.active.toLocaleString('ru-RU');
   let icon, title, text;
   if (s.outcome === 'eat') {
-    icon = '😋'; title = 'Муха ест!'; text = `Сахар → ${n} нейронов → хоботок`;
+    icon = 'eat'; title = 'Муха ест!'; text = `Сахар → ${n} нейронов → хоботок`;
   } else if (s.outcome === 'weak') {
-    icon = '🤕'; title = 'Почти не ест'; text = 'Сломан всего один нейрон из 138 639';
+    icon = 'hurt'; title = 'Почти не ест'; text = 'Сломан всего один нейрон из 138 639';
   } else if (stim === 'bitter') {
-    icon = '🤢'; title = 'Фу! Не буду'; text = 'Горький сигнал не дошёл до хоботка';
+    icon = 'yuck'; title = 'Фу! Не буду'; text = 'Горький сигнал не дошёл до хоботка';
   } else if (stim === 'water') {
-    icon = '🙂'; title = 'Пить не хочет'; text = 'Вода для мухи слабее, чем сахар';
+    icon = 'calm'; title = 'Пить не хочет'; text = 'Вода для мухи слабее, чем сахар';
   } else {
-    icon = '😐'; title = 'Не ест'; text = 'Сигнал не дошёл до хоботка';
+    icon = 'none'; title = 'Не ест'; text = 'Сигнал не дошёл до хоботка';
   }
-  $('result-icon').textContent = icon;
+  $('result-icon').innerHTML = ICONS[icon];
   $('result-title').textContent = title;
   $('result-text').textContent = text;
   $('result').classList.remove('hidden');
-  $('status').textContent = '';
+  setStatus(null, '');
+}
+
+// строка статуса: иконка + текст
+function setStatus(icon, text) {
+  const el = $('status');
+  el.textContent = '';
+  if (icon) {
+    const i = document.createElement('span');
+    i.className = 'status-icon'; i.innerHTML = ICONS[icon];
+    el.appendChild(i);
+  }
+  el.appendChild(document.createTextNode(text));
 }
 
 function spawnPulses(i, now) {
@@ -477,6 +491,9 @@ function drawBrain(now, dtReal) {
     cam.target.y + dist * Math.sin(pitch),
     cam.target.z + dist * Math.cos(yaw) * Math.cos(pitch));
   camera.lookAt(cam.target);
+  // макет может сдвинуть кадр, чтобы мозг не прятался под панелями
+  const shift = (window.STAND_OPTS && window.STAND_OPTS.shiftX) || 0;
+  if (shift) camera.setViewOffset(w, h, w * shift, 0, w, h); else camera.clearViewOffset();
   camera.updateProjectionMatrix();
   nMat.uniforms.uScale.value = h * dpr / (2 * tanHalf);
   brainR.render(scene, camera);
@@ -511,7 +528,12 @@ function drawTags(w, h) {
 
 function drawFly(now) {
   const [w, h] = resize(flyR, flyCanvas);
-  flyCam.aspect = w / h; flyCam.updateProjectionMatrix();
+  flyCam.aspect = w / h;
+  // в узкой панели отодвигаем камеру, чтобы муха влезла целиком
+  const dist = FLY_DIST * Math.max(1.12, 1.7 / flyCam.aspect);
+  flyCam.position.copy(FLY_TARGET).addScaledVector(FLY_DIR, dist);
+  flyCam.lookAt(FLY_TARGET);
+  flyCam.updateProjectionMatrix();
   fly.rotation.y = -0.35 + 0.3 * Math.sin(now * 0.0004);
   shadow.rotation.z = fly.rotation.y;
   // крылья чуть подрагивают, при горьком — нервно
@@ -550,5 +572,7 @@ $('info-btn').addEventListener('click', () => $('info').classList.remove('hidden
 $('info-close').addEventListener('click', () => $('info').classList.add('hidden'));
 window.addEventListener('contextmenu', e => e.preventDefault());
 
+fillIcons();
+setStatus('down', 'Выбери, чем угостить муху');
 setProboscis(0);
 requestAnimationFrame(step);
