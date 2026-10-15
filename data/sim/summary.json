@@ -50,6 +50,26 @@
     40.0,
     53.0
    ]
+  },
+  "bitter_lesion": {
+   "spikes": 4011,
+   "active": 57,
+   "proboscis_spikes": 0,
+   "proboscis_first_ms": null,
+   "mn9_hz": [
+    0.0,
+    0.0
+   ]
+  },
+  "water_lesion": {
+   "spikes": 5194,
+   "active": 86,
+   "proboscis_spikes": 0,
+   "proboscis_first_ms": null,
+   "mn9_hz": [
+    0.0,
+    0.0
+   ]
   }
  }
 }

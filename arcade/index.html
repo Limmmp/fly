@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Успей за мухой</title>
+<style>
+/* Аркада "Успей за мухой": старт как в Формуле 1. Шрифты от 24px. */
+:root { --bg: #0b0d1a; --panel: #161a35; --text: #f2f3ff; --muted: #a9adcf; --red: #ff2a3a; --off: #2a0d12; --green: #6cff7a; --gold: #ffc83c; }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 24px/1.25 "Segoe UI", Roboto, Arial, sans-serif;
+  display: grid; grid-template-columns: 1fr 360px; grid-template-rows: auto 1fr; gap: 20px; padding: 20px 32px;
+  overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: manipulation; cursor: pointer;
+}
+header { grid-column: 1 / -1; }
+h1 { margin: 0; font-size: 56px; }
+header p { margin: 4px 0 0; font-size: 28px; color: var(--muted); }
+.stage { display: grid; grid-template-rows: auto auto 1fr; gap: 20px; min-height: 0; }
+.lights { display: flex; justify-content: center; gap: 22px; padding: 26px; background: #050608; border-radius: 28px; }
+.pod { background: #111; border-radius: 18px; padding: 14px; display: grid; gap: 12px; }
+.lamp { width: 92px; height: 92px; border-radius: 50%; background: var(--off); transition: background .04s, box-shadow .04s; }
+.lamp.on { background: var(--red); box-shadow: 0 0 40px 10px rgba(255, 42, 58, .65); }
+.message { text-align: center; font-size: 56px; font-weight: 800; min-height: 72px; }
+.message small { display: block; font-size: 30px; font-weight: 500; color: var(--muted); }
+.message.false { color: var(--red); }
+.race { background: var(--panel); border-radius: 28px; padding: 20px 28px; display: grid; gap: 18px; align-content: center; }
+.race.hidden { visibility: hidden; }
+.lane { display: grid; grid-template-columns: 170px 1fr 170px; align-items: center; gap: 16px; font-size: 32px; }
+.track { height: 52px; background: #0b0e22; border-radius: 26px; overflow: hidden; }
+.bar { height: 100%; width: 0; border-radius: 26px; transition: width 1.2s cubic-bezier(.2, .8, .2, 1); }
+.bar.fly { background: var(--green); }
+.bar.you { background: var(--gold); }
+.lane b { font-variant-numeric: tabular-nums; text-align: right; }
+.verdict { font-size: 36px; font-weight: 700; text-align: center; }
+.fact { font-size: 26px; color: var(--muted); text-align: center; }
+aside { background: var(--panel); border-radius: 28px; padding: 20px 24px; display: grid; grid-template-rows: auto auto 1fr auto; gap: 12px; min-height: 0; }
+aside h2 { margin: 0; font-size: 32px; }
+.best { font-size: 64px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }
+ol { margin: 0; padding-left: 40px; font-size: 30px; font-variant-numeric: tabular-nums; overflow: hidden; }
+ol li.new { color: var(--green); font-weight: 700; }
+.hint { font-size: 24px; color: var(--muted); }
+canvas { position: fixed; right: 400px; top: 150px; width: 160px; height: 120px; pointer-events: none; }
+@media (max-height: 820px) {
+  h1 { font-size: 40px; } header p { font-size: 24px; }
+  body { gap: 14px; padding: 14px 28px; }
+  .stage { gap: 12px; }
+  .lights { padding: 14px; }
+  .pod { padding: 10px; gap: 8px; }
+  .lamp { width: 60px; height: 60px; }
+  .message { font-size: 40px; min-height: 56px; }
+  .message small { font-size: 26px; }
+  .race { padding: 14px 24px; gap: 10px; }
+  .lane { font-size: 26px; grid-template-columns: 130px 1fr 140px; }
+  .track { height: 40px; }
+  .verdict { font-size: 30px; }
+  .fact { font-size: 24px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Успей за мухой!</h1>
+  <p>Погаснут все огни — жми <b>ПРОБЕЛ</b> (или на экран) как можно быстрее</p>
+</header>
+
+<section class="stage">
+  <div class="lights" id="lights"></div>
+  <div class="message" id="msg">Нажми, чтобы начать</div>
+  <div class="race hidden" id="race">
+    <div class="lane"><span>🪰 Муха</span><div class="track"><div class="bar fly" id="bar-fly"></div></div><b id="t-fly"></b></div>
+    <div class="lane"><span>🧒 Ты</span><div class="track"><div class="bar you" id="bar-you"></div></div><b id="t-you"></b></div>
+    <div class="verdict" id="verdict"></div>
+    <div class="fact">У мухи есть нейрон-великан <b>DNp01</b> — толстый «провод» от глаз к ногам.
+      Сигнал по нему бежит 0,3 мс, и муха взлетает меньше чем за 7 мс.</div>
+  </div>
+</section>
+
+<aside>
+  <h2>🏆 Рекорд дня</h2>
+  <div class="best" id="best">—</div>
+  <ol id="top"></ol>
+  <div class="hint">Shift+R — сбросить рекорды</div>
+</aside>
+
+<canvas id="fly" width="320" height="240"></canvas>
+
+<script>
+'use strict';
+// Время мухи: короткий режим взлёта через гигантское волокно < 7 мс
+// (von Reyn et al. 2014, Nat Neurosci; Chai et al. 2025, PMC12115834:
+// "short (< 7 ms) mode", проведение по GF 0.29 мс, GF -> мышца TTM < 1 мс).
+const FLY_MS = 7;
+const LIGHT_STEP_MS = 1000;           // огни загораются раз в секунду, как в F1
+const HOLD_MIN_MS = 200, HOLD_MAX_MS = 3000;  // случайная пауза перед "огни погасли"
+const TOO_SLOW_MS = 2000;
+const STORE_KEY = 'fly-arcade-records';
+
+const $ = id => document.getElementById(id);
+const lamps = [];
+for (let p = 0; p < 5; p++) {
+  const pod = document.createElement('div'); pod.className = 'pod';
+  for (let r = 0; r < 2; r++) {
+    const l = document.createElement('div'); l.className = 'lamp'; pod.appendChild(l);
+    if (r === 1) lamps.push(l);
+  }
+  $('lights').appendChild(pod);
+}
+const topLamps = [...document.querySelectorAll('.pod .lamp:first-child')];
+
+let state = 'ready';   // ready -> lights -> go -> result | false
+let timers = [];
+let goTime = 0;
+let flyJumpAt = 0;
+
+function setLights(n) {
+  lamps.forEach((l, i) => l.classList.toggle('on', i < n));
+  topLamps.forEach((l, i) => l.classList.toggle('on', i < n));
+}
+function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+function startRound() {
+  clearTimers();
+  state = 'lights';
+  flyJumpAt = 0;
+  $('race').classList.add('hidden');
+  $('msg').className = 'message';
+  $('msg').innerHTML = 'Внимание…';
+  setLights(0);
+  for (let i = 1; i <= 5; i++) timers.push(setTimeout(() => setLights(i), i * LIGHT_STEP_MS));
+  const hold = HOLD_MIN_MS + Math.random() * (HOLD_MAX_MS - HOLD_MIN_MS);
+  timers.push(setTimeout(lightsOut, 5 * LIGHT_STEP_MS + hold));
+}
+
+function lightsOut() {
+  setLights(0);
+  goTime = performance.now();
+  state = 'go';
+  flyJumpAt = goTime + FLY_MS;
+  $('msg').innerHTML = 'ЖМИ!';
+  timers.push(setTimeout(() => { if (state === 'go') finish(null); }, TOO_SLOW_MS));
+}
+
+function falseStart() {
+  clearTimers();
+  setLights(0);
+  state = 'false';
+  $('msg').className = 'message false';
+  $('msg').innerHTML = 'Фальстарт! 🚩<small>Жди, пока погаснут все огни. Нажми, чтобы попробовать ещё</small>';
+}
+
+function finish(ms) {
+  clearTimers();
+  state = 'result';
+  if (ms === null) {
+    $('msg').innerHTML = 'Муха давно улетела! 💨<small>Нажми, чтобы попробовать ещё</small>';
+    return;
+  }
+  const rec = saveRecord(ms);
+  $('msg').innerHTML = `${Math.round(ms)} мс<small>${rating(ms)}${rec ? ' · Новый рекорд дня! 🏆' : ''}</small>`;
+  // полосы: шкала по времени игрока, муха почти не видна — в этом и суть
+  $('race').classList.remove('hidden');
+  $('bar-fly').style.width = '0'; $('bar-you').style.width = '0';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    $('bar-fly').style.width = `${Math.max(1.5, 100 * FLY_MS / ms)}%`;
+    $('bar-you').style.width = '100%';
+  }));
+  $('t-fly').textContent = `${FLY_MS} мс`;
+  $('t-you').textContent = `${Math.round(ms)} мс`;
+  $('verdict').textContent = `Муха быстрее тебя в ${Math.round(ms / FLY_MS)} раз!`;
+}
+
+function rating(ms) {
+  if (ms < 200) return 'Как пилот Формулы 1!';
+  if (ms < 280) return 'Отличная реакция!';
+  if (ms < 400) return 'Неплохо!';
+  return 'Попробуй ещё раз!';
+}
+
+// ---------- рекорды: только этот браузер, за сегодня ----------
+function today() { return new Date().toISOString().slice(0, 10); }
+function loadRecords() {
+  try {
+    const r = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+    return r.day === today() ? r : { day: today(), times: [] };
+  } catch (e) { return { day: today(), times: [] }; }
+}
+let lastSaved = null;
+function saveRecord(ms) {
+  const r = loadRecords();
+  const prevBest = r.times.length ? r.times[0] : Infinity;
+  const t = Math.round(ms);
+  r.times.push(t); r.times.sort((a, b) => a - b); r.times = r.times.slice(0, 7);
+  lastSaved = t;
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(r)); } catch (e) { /* хранилище недоступно — просто не сохраняем */ }
+  renderRecords(r);
+  return t < prevBest;
+}
+function renderRecords(r = loadRecords()) {
+  $('best').textContent = r.times.length ? `${r.times[0]} мс` : '—';
+  let marked = false;
+  $('top').innerHTML = r.times.map(t => {
+    const cls = !marked && t === lastSaved ? (marked = true, ' class="new"') : '';
+    return `<li${cls}>${t} мс</li>`;
+  }).join('');
+}
+
+// ---------- ввод ----------
+function press(ev) {
+  const now = ev && ev.timeStamp ? ev.timeStamp : performance.now();
+  if (state === 'ready' || state === 'result' || state === 'false') startRound();
+  else if (state === 'lights') falseStart();
+  else if (state === 'go') finish(now - goTime);
+}
+window.addEventListener('keydown', e => {
+  if (e.shiftKey && (e.key === 'R' || e.key === 'К')) {
+    if (confirm('Сбросить рекорды дня?')) { try { localStorage.removeItem(STORE_KEY); } catch (er) {} renderRecords(); }
+    return;
+  }
+  if (e.repeat) return;
+  if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); press(e); }
+});
+window.addEventListener('pointerdown', press);
+window.addEventListener('contextmenu', e => e.preventDefault());
+
+// ---------- муха: сидит, а через FLY_MS после погасания огней улетает ----------
+const fc = $('fly').getContext('2d');
+function drawFly(now) {
+  fc.clearRect(0, 0, 320, 240);
+  let x = 160, y = 170;
+  if (flyJumpAt && now > flyJumpAt) {
+    const t = (now - flyJumpAt) / 1000;
+    x += 600 * t; y -= 500 * t + 200 * t * t;
+  }
+  if (y > -60) {
+    const wing = flyJumpAt && now > flyJumpAt ? Math.sin(now / 15) * 20 : 0;
+    fc.save(); fc.translate(x, y);
+    fc.fillStyle = 'rgba(200,230,255,.45)';
+    fc.beginPath(); fc.ellipse(10, -30 - wing, 50, 18, -0.4, 0, 6.283); fc.fill();
+    fc.fillStyle = '#6b5a3a'; fc.beginPath(); fc.ellipse(25, 0, 40, 22, 0, 0, 6.283); fc.fill();
+    fc.fillStyle = '#5a4a30'; fc.beginPath(); fc.arc(-25, -2, 20, 0, 6.283); fc.fill();
+    fc.fillStyle = '#d0202c'; fc.beginPath(); fc.ellipse(-30, -6, 13, 15, 0.2, 0, 6.283); fc.fill();
+    fc.restore();
+  }
+  requestAnimationFrame(drawFly);
+}
+renderRecords();
+requestAnimationFrame(drawFly);
+</script>
+</body>
+</html>

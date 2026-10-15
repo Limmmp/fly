@@ -4,6 +4,7 @@
   bitter        — горькое
   water         — вода
   sugar_lesion  — сахар, но один ключевой нейрон выключен
+  bitter_lesion, water_lesion — то же для горького и воды (для тумблера на стенде)
 
 Ключевой нейрон подбираем по данным: кандидаты — нейроны, активные при
 сахаре и стоящие на пути сахар -> хоботок (не дальше 2 переходов от
@@ -111,6 +112,8 @@ def main():
         'bitter': (inputs['bitter'], []),
         'water': (inputs['water'], []),
         'sugar_lesion': (inputs['sugar'], [key]),
+        'bitter_lesion': (inputs['bitter'], [key]),
+        'water_lesion': (inputs['water'], [key]),
     }
     summary = {'t_ms': T_MS, 'dt_ms': lif.DT, 'rate_hz': lif.RPOI, 'seed': SEED,
                'lesion': {'idx': key, 'root_id': int(c.root_ids[key]),

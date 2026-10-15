@@ -23,7 +23,7 @@ import flydata
 ROOT = Path(__file__).resolve().parent.parent
 SIM = ROOT / 'data' / 'sim'
 OUT = ROOT / 'data' / 'export'
-SCENARIOS = ('sugar', 'bitter', 'water', 'sugar_lesion')
+SCENARIOS = ('sugar', 'bitter', 'water', 'sugar_lesion', 'bitter_lesion', 'water_lesion')
 GRID = 4095          # разрешение сетки координат
 WINDOW_MS = 100.0    # окно квантования для сонификации
 
