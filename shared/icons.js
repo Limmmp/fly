@@ -98,6 +98,28 @@
       <circle cx="24" cy="29" r="2.8" fill="${INK}" stroke="none"/><circle cx="40" cy="29" r="2.8" fill="${INK}" stroke="none"/>
       <path d="M24 43h16" fill="none"/>`),
 
+    // аркада: режимы освещения, участники, награды
+    sun: svg(`<circle cx="32" cy="32" r="12" fill="#ffc24b"/>
+      <path d="M32 6v8M32 50v8M6 32h8M50 32h8M13.6 13.6l5.6 5.6M44.8 44.8l5.6 5.6M13.6 50.4l5.6-5.6M44.8 19.2l5.6-5.6" fill="none" stroke="#ffc24b" stroke-width="3.4"/>`),
+    dusk: svg(`<path d="M12 42a20 20 0 0 1 40 0Z" fill="#ff8a5c"/>
+      <path d="M6 42h52M14 50h36M22 57h20" fill="none" stroke="#c39bff" stroke-width="3.2"/>`),
+    moon: svg(`<path d="M40 8a24 24 0 1 0 16 38A20 20 0 0 1 40 8Z" fill="#dfe6ff"/>
+      ${sparkle(18, 16, 5, '#ffc24b')}${sparkle(50, 14, 4, '#9aa0c6')}`),
+    fly: svg(`<ellipse cx="38" cy="36" rx="16" ry="10" fill="#9a6a34"/>
+      <path d="M30 40l-6 12M38 44l0 12M46 42l6 11" fill="none" stroke-width="2.4"/>
+      <path d="M34 28q6-18 22-16q-4 14-22 16Z" fill="#e6f0ff" fill-opacity=".85"/>
+      <circle cx="20" cy="32" r="9" fill="#d81b2c"/>`),
+    kid: svg(`<circle cx="32" cy="22" r="12" fill="#ffd1a6"/>
+      <path d="M20 18q12-14 24 0q-4-6-12-6t-12 6Z" fill="#6b4520"/>
+      <path d="M14 58q0-18 18-18t18 18Z" fill="#52c7ff"/>
+      <circle cx="28" cy="22" r="1.8" fill="${INK}" stroke="none"/><circle cx="36" cy="22" r="1.8" fill="${INK}" stroke="none"/>`),
+    trophy: svg(`<path d="M20 10h24v14a12 12 0 0 1-24 0Z" fill="#ffc24b"/>
+      <path d="M20 14h-8q0 12 10 14M44 14h8q0 12-10 14" fill="none"/>
+      <path d="M28 36h8v8h-8ZM22 44h20v8H22Z" fill="#ffc24b"/>`),
+    flag: svg(`<path d="M16 8v50" fill="none" stroke-width="3.4"/>
+      <path d="M16 10h32l-7 10 7 10H16Z" fill="#ff5468"/>`),
+    wind: svg(`<path d="M8 24h30a8 8 0 1 0-8-8M8 34h40a8 8 0 1 1-8 8M8 44h20" fill="none" stroke="#9aa0c6" stroke-width="3.6"/>`),
+
     // служебные
     down: svg(`<path d="M18 24 32 40 46 24" fill="none" stroke="currentColor" stroke-width="5"/>`),
     info: svg(`<circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="4"/>

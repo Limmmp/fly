@@ -75,16 +75,16 @@ main {
 .result-text { color: var(--muted); margin-top: 2px; }
 
 .controls {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px;
+  display: grid; grid-template-columns: repeat(6, 1fr) 1.5fr; gap: 12px;
   padding: 8px 32px 10px;
 }
 .controls button {
   --accent: #fff;
   position: relative;
-  display: flex; align-items: center; justify-content: center; gap: 14px;
-  font: 800 36px var(--font); color: var(--text);
-  min-height: 112px; padding: 12px;
-  border-radius: 26px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font: 800 28px var(--font); color: var(--text);
+  min-height: 112px; padding: 8px;
+  border-radius: 24px;
   border: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent),
@@ -94,14 +94,17 @@ main {
   transition: transform .08s, box-shadow .08s, background .2s, border-color .2s;
 }
 .controls button:active { transform: translateY(5px); box-shadow: 0 1px 0 rgba(0, 0, 0, .45); }
-.controls .ico { width: 64px; height: 64px; display: inline-flex; flex: none; }
+.controls .ico { width: 58px; height: 58px; display: inline-flex; flex: none; }
 .controls .ico svg { width: 100%; height: 100%; }
-.controls kbd { position: absolute; right: 16px; top: 10px; font: 600 24px var(--font); color: var(--dim); }
+.controls kbd { position: absolute; right: 14px; top: 8px; font: 600 24px var(--font); color: var(--dim); }
 .stim[data-stim="sugar"] { --accent: var(--sugar); }
 .stim[data-stim="bitter"] { --accent: var(--bitter); }
 .stim[data-stim="water"] { --accent: var(--water); }
-.lesion { --accent: var(--neuron); font-size: 30px !important; }
-.lesion b { font-weight: 800; line-height: 1.05; }
+.stim[data-stim="loom"] { --accent: #b8bde6; }
+.stim[data-stim="smell"] { --accent: #c39bff; }
+.stim[data-stim="touch"] { --accent: #e8ecff; }
+.lesion { --accent: var(--neuron); flex-direction: row !important; gap: 12px !important; }
+.lesion b { font-weight: 800; line-height: 1.05; text-align: left; }
 .controls button.active,
 .lesion[aria-pressed="true"] {
   border-color: var(--accent);
@@ -127,9 +130,8 @@ footer { padding: 0 32px 10px; color: var(--dim); }
 @media (max-height: 820px) {
   h1 { font-size: 40px; }
   header { padding-top: 12px; }
-  .controls button { min-height: 92px; font-size: 30px; }
-  .controls .ico { width: 50px; height: 50px; }
-  .lesion { font-size: 26px !important; }
+  .controls button { min-height: 92px; font-size: 24px; }
+  .controls .ico { width: 44px; height: 44px; }
   .result { min-height: 180px; }
   .result-icon { width: 60px; height: 60px; }
   .result-title { font-size: 32px; }

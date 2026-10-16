@@ -4,14 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Успей за мухой</title>
+<link rel="stylesheet" href="../shared/theme.css">
 <style>
 /* Аркада "Успей за мухой": старт как в Формуле 1. Шрифты от 24px. */
-:root { --bg: #0b0d1a; --panel: #161a35; --text: #f2f3ff; --muted: #a9adcf; --red: #ff2a3a; --off: #2a0d12; --green: #6cff7a; --gold: #ffc83c; }
+:root { --panel: #11152c; --red: #ff2a3a; --off: #2a0d12; --green: #7dff9a; --gold: #ffc24b; }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body {
-  background: var(--bg); color: var(--text);
-  font: 24px/1.25 "Segoe UI", Roboto, Arial, sans-serif;
+  background: radial-gradient(70% 60% at 35% 30%, #0d1230 0%, transparent 70%), var(--bg); color: var(--text);
+  font: 500 24px/1.25 var(--font);
   display: grid; grid-template-columns: 1fr 360px; grid-template-rows: auto 1fr; gap: 20px; padding: 20px 32px;
   overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: manipulation; cursor: pointer;
 }
@@ -20,19 +21,23 @@ h1 { margin: 0; font-size: 56px; }
 header p { margin: 4px 0 0; font-size: 28px; color: var(--muted); }
 .stage { display: grid; grid-template-rows: auto auto auto 1fr; gap: 20px; min-height: 0; }
 .modes { display: flex; gap: 16px; }
-.modes button { font: inherit; font-size: 28px; font-weight: 700; padding: 10px 22px; border: 0; border-radius: 20px;
+.modes button { display: inline-flex; align-items: center; gap: 10px; font: inherit; font-size: 28px; font-weight: 700; padding: 10px 22px; border: 0; border-radius: 20px;
   background: var(--panel); color: var(--text); cursor: pointer; }
-.modes button.on { background: var(--gold); color: #1a1a1a; }
-.modes kbd { font: 24px monospace; opacity: .5; margin-left: 8px; }
+.modes button { border: 2px solid transparent !important; }
+.modes button.on { background: color-mix(in srgb, var(--gold) 20%, var(--panel)); border-color: var(--gold) !important; box-shadow: 0 0 22px color-mix(in srgb, var(--gold) 35%, transparent); }
+.modes kbd { font: 600 24px var(--font); color: var(--dim); margin-left: 4px; }
+.ic { display: inline-flex; width: 1.4em; height: 1.4em; vertical-align: -.35em; }
+.ic svg { width: 100%; height: 100%; }
+h1 { letter-spacing: -.02em; font-weight: 800; }
 .breakdown { font-size: 24px; color: var(--muted); text-align: center; }
-.lights { display: flex; justify-content: center; gap: 22px; padding: 26px; background: #050608; border-radius: 28px; }
+.lights { display: flex; justify-content: center; gap: 22px; padding: 26px; background: linear-gradient(180deg, #0a0b12, #040408); border: 1px solid var(--line); border-radius: 28px; }
 .pod { background: #111; border-radius: 18px; padding: 14px; display: grid; gap: 12px; }
 .lamp { width: 92px; height: 92px; border-radius: 50%; background: var(--off); transition: background .04s, box-shadow .04s; }
 .lamp.on { background: var(--red); box-shadow: 0 0 40px 10px rgba(255, 42, 58, .65); }
 .message { text-align: center; font-size: 56px; font-weight: 800; min-height: 72px; }
 .message small { display: block; font-size: 30px; font-weight: 500; color: var(--muted); }
 .message.false { color: var(--red); }
-.race { background: var(--panel); border-radius: 28px; padding: 20px 28px; display: grid; gap: 18px; align-content: center; }
+.race { border-radius: 28px; padding: 20px 28px; display: grid; gap: 18px; align-content: center; }
 .race.hidden { visibility: hidden; }
 .lane { display: grid; grid-template-columns: 170px 1fr 170px; align-items: center; gap: 16px; font-size: 32px; }
 .track { height: 52px; background: #0b0e22; border-radius: 26px; overflow: hidden; }
@@ -42,7 +47,7 @@ header p { margin: 4px 0 0; font-size: 28px; color: var(--muted); }
 .lane b { font-variant-numeric: tabular-nums; text-align: right; }
 .verdict { font-size: 36px; font-weight: 700; text-align: center; }
 .fact { font-size: 26px; color: var(--muted); text-align: center; }
-aside { background: var(--panel); border-radius: 28px; padding: 20px 24px; display: grid; grid-template-rows: auto auto 1fr auto; gap: 12px; min-height: 0; }
+aside { border-radius: 28px; padding: 20px 24px; display: grid; grid-template-rows: auto auto 1fr auto; gap: 12px; min-height: 0; }
 aside h2 { margin: 0; font-size: 32px; }
 .best { font-size: 64px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }
 ol { margin: 0; padding-left: 40px; font-size: 30px; font-variant-numeric: tabular-nums; overflow: hidden; }
@@ -56,7 +61,10 @@ canvas { position: fixed; right: 400px; top: 150px; width: 160px; height: 120px;
   .lights { padding: 14px; }
   .pod { padding: 10px; gap: 8px; }
   .lamp { width: 60px; height: 60px; }
-  .message { font-size: 40px; min-height: 56px; }
+  .message { font-size: 38px; min-height: 56px; line-height: 1.15; }
+  .lamp { width: 52px !important; height: 52px !important; }
+  .lights { padding: 10px !important; }
+  .modes button { font-size: 24px; padding: 6px 16px; }
   .message small { font-size: 26px; }
   .race { padding: 14px 24px; gap: 10px; }
   .lane { font-size: 26px; grid-template-columns: 130px 1fr 140px; }
@@ -76,9 +84,9 @@ canvas { position: fixed; right: 400px; top: 150px; width: 160px; height: 120px;
   <div class="modes" id="modes"></div>
   <div class="lights" id="lights"></div>
   <div class="message" id="msg">Нажми, чтобы начать</div>
-  <div class="race hidden" id="race">
-    <div class="lane"><span>🪰 Муха</span><div class="track"><div class="bar fly" id="bar-fly"></div></div><b id="t-fly"></b></div>
-    <div class="lane"><span>🧒 Ты</span><div class="track"><div class="bar you" id="bar-you"></div></div><b id="t-you"></b></div>
+  <div class="race glass hidden" id="race">
+    <div class="lane"><span><i class="ic" data-icon="fly"></i> Муха</span><div class="track"><div class="bar fly" id="bar-fly"></div></div><b id="t-fly"></b></div>
+    <div class="lane"><span><i class="ic" data-icon="kid"></i> Ты</span><div class="track"><div class="bar you" id="bar-you"></div></div><b id="t-you"></b></div>
     <div class="breakdown" id="breakdown"></div>
     <div class="verdict" id="verdict"></div>
     <div class="fact">У мухи есть нейрон-великан <b>DNp01</b> — толстый «провод» от глаз к ногам.
@@ -87,8 +95,8 @@ canvas { position: fixed; right: 400px; top: 150px; width: 160px; height: 120px;
   </div>
 </section>
 
-<aside>
-  <h2>🏆 Рекорд дня</h2>
+<aside class="glass">
+  <h2><i class="ic" data-icon="trophy"></i> Рекорд дня</h2>
   <div class="best" id="best">—</div>
   <ol id="top"></ol>
   <div class="hint">Shift+R — сбросить рекорды</div>
@@ -96,6 +104,7 @@ canvas { position: fixed; right: 400px; top: 150px; width: 160px; height: 120px;
 
 <canvas id="fly" width="320" height="240"></canvas>
 
+<script src="../shared/icons.js"></script>
 <script src="escape_data.js"></script>
 <script>
 'use strict';
@@ -137,7 +146,7 @@ function setMode(m) {
 MODES.forEach((m, k) => {
   const b = document.createElement('button');
   b.dataset.key = m.key;
-  b.innerHTML = `${['☀️', '🌆', '🌙'][k] || ''} ${m.title}<kbd>${k + 1}</kbd>`;
+  b.innerHTML = `<i class="ic">${ICONS[['sun', 'dusk', 'moon'][k]] || ''}</i>${m.title}<kbd>${k + 1}</kbd>`;
   b.addEventListener('pointerdown', e => { e.stopPropagation(); if (state !== 'lights' && state !== 'go') setMode(m); });
   $('modes').appendChild(b);
 });
@@ -183,18 +192,18 @@ function falseStart() {
   setLights(0);
   state = 'false';
   $('msg').className = 'message false';
-  $('msg').innerHTML = 'Фальстарт! 🚩<small>Жди, пока погаснут все огни. Нажми, чтобы попробовать ещё</small>';
+  $('msg').innerHTML = `Фальстарт! <i class="ic">${ICONS.flag}</i><small>Жди, пока погаснут все огни. Нажми, чтобы попробовать ещё</small>`;
 }
 
 function finish(ms) {
   clearTimers();
   state = 'result';
   if (ms === null) {
-    $('msg').innerHTML = 'Муха давно улетела! 💨<small>Нажми, чтобы попробовать ещё</small>';
+    $('msg').innerHTML = `Муха давно улетела! <i class="ic">${ICONS.wind}</i><small>Нажми, чтобы попробовать ещё</small>`;
     return;
   }
   const rec = saveRecord(ms);
-  $('msg').innerHTML = `${Math.round(ms)} мс<small>${rating(ms)}${rec ? ' · Новый рекорд дня! 🏆' : ''}</small>`;
+  $('msg').innerHTML = `${Math.round(ms)} мс<small>${rating(ms)}${rec ? ` · Новый рекорд дня! <i class="ic">${ICONS.trophy}</i>` : ''}</small>`;
   $('race').classList.remove('hidden');
   $('t-fly').textContent = `${Math.round(flyMs)} мс`;
   $('t-you').textContent = `${Math.round(ms)} мс`;
@@ -292,6 +301,7 @@ function drawFly(now) {
   }
   requestAnimationFrame(drawFly);
 }
+fillIcons();
 renderRecords();
 requestAnimationFrame(drawFly);
 </script>
