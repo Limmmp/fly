@@ -3,73 +3,189 @@
  "dt_ms": 0.1,
  "rate_hz": 150.0,
  "seed": 1,
- "lesion": {
-  "idx": 69593,
-  "root_id": 720575940625045180,
-  "cell_type": "CB0910",
-  "side": "right",
-  "top_nt": "acetylcholine"
+ "lesions": {
+  "sugar": [
+   {
+    "idx": 69593,
+    "root_id": 720575940625045180,
+    "cell_type": "CB0910",
+    "side": "right",
+    "top_nt": "acetylcholine"
+   }
+  ],
+  "smell": [
+   {
+    "idx": 88385,
+    "root_id": 720575940628455942,
+    "cell_type": "CRE011",
+    "side": "right",
+    "top_nt": "acetylcholine"
+   }
+  ],
+  "touch": [
+   {
+    "idx": 26421,
+    "root_id": 720575940616185531,
+    "cell_type": "DNg62",
+    "side": "right",
+    "top_nt": "acetylcholine"
+   }
+  ],
+  "loom": [
+   {
+    "idx": 57246,
+    "root_id": 720575940622838154,
+    "cell_type": "DNp01",
+    "side": "left",
+    "top_nt": "acetylcholine"
+   },
+   {
+    "idx": 108748,
+    "root_id": 720575940632499757,
+    "cell_type": "DNp01",
+    "side": "right",
+    "top_nt": "glutamate"
+   }
+  ],
+  "bitter": [
+   {
+    "idx": 69593,
+    "root_id": 720575940625045180,
+    "cell_type": "CB0910",
+    "side": "right",
+    "top_nt": "acetylcholine"
+   }
+  ],
+  "water": [
+   {
+    "idx": 69593,
+    "root_id": 720575940625045180,
+    "cell_type": "CB0910",
+    "side": "right",
+    "top_nt": "acetylcholine"
+   }
+  ]
  },
  "scenarios": {
   "sugar": {
+   "stimulus": "sugar",
+   "output": "proboscis",
+   "lesion": false,
    "spikes": 15564,
    "active": 351,
-   "proboscis_spikes": 921,
-   "proboscis_first_ms": 45.300000000000004,
-   "mn9_hz": [
-    36.0,
-    55.0
-   ]
-  },
-  "bitter": {
-   "spikes": 4011,
-   "active": 57,
-   "proboscis_spikes": 0,
-   "proboscis_first_ms": null,
-   "mn9_hz": [
-    0.0,
-    0.0
-   ]
-  },
-  "water": {
-   "spikes": 5194,
-   "active": 86,
-   "proboscis_spikes": 0,
-   "proboscis_first_ms": null,
-   "mn9_hz": [
-    0.0,
-    0.0
-   ]
+   "output_spikes": 921,
+   "output_first_ms": 45.300000000000004,
+   "wing_hz": 0.0
   },
   "sugar_lesion": {
+   "stimulus": "sugar",
+   "output": "proboscis",
+   "lesion": true,
    "spikes": 11086,
    "active": 330,
-   "proboscis_spikes": 223,
-   "proboscis_first_ms": 45.300000000000004,
-   "mn9_hz": [
-    40.0,
-    53.0
-   ]
+   "output_spikes": 223,
+   "output_first_ms": 45.300000000000004,
+   "wing_hz": 0.0
   },
-  "bitter_lesion": {
+  "bitter": {
+   "stimulus": "bitter",
+   "output": "proboscis",
+   "lesion": false,
    "spikes": 4011,
    "active": 57,
-   "proboscis_spikes": 0,
-   "proboscis_first_ms": null,
-   "mn9_hz": [
-    0.0,
-    0.0
-   ]
+   "output_spikes": 0,
+   "output_first_ms": null,
+   "wing_hz": 0.0
   },
-  "water_lesion": {
+  "bitter_lesion": {
+   "stimulus": "bitter",
+   "output": "proboscis",
+   "lesion": true,
+   "spikes": 4011,
+   "active": 57,
+   "output_spikes": 0,
+   "output_first_ms": null,
+   "wing_hz": 0.0
+  },
+  "water": {
+   "stimulus": "water",
+   "output": "proboscis",
+   "lesion": false,
    "spikes": 5194,
    "active": 86,
-   "proboscis_spikes": 0,
-   "proboscis_first_ms": null,
-   "mn9_hz": [
-    0.0,
-    0.0
-   ]
+   "output_spikes": 0,
+   "output_first_ms": null,
+   "wing_hz": 0.0
+  },
+  "water_lesion": {
+   "stimulus": "water",
+   "output": "proboscis",
+   "lesion": true,
+   "spikes": 5194,
+   "active": 86,
+   "output_spikes": 0,
+   "output_first_ms": null,
+   "wing_hz": 0.0
+  },
+  "loom": {
+   "stimulus": "loom",
+   "output": "escape",
+   "lesion": false,
+   "spikes": 56483,
+   "active": 752,
+   "output_spikes": 370,
+   "output_first_ms": 6.7,
+   "wing_hz": 0.0
+  },
+  "loom_lesion": {
+   "stimulus": "loom",
+   "output": "escape",
+   "lesion": true,
+   "spikes": 55612,
+   "active": 749,
+   "output_spikes": 0,
+   "output_first_ms": null,
+   "wing_hz": 0.0
+  },
+  "smell": {
+   "stimulus": "smell",
+   "output": "walk",
+   "lesion": false,
+   "spikes": 626949,
+   "active": 8087,
+   "output_spikes": 287,
+   "output_first_ms": 28.0,
+   "wing_hz": 67.0
+  },
+  "smell_lesion": {
+   "stimulus": "smell",
+   "output": "walk",
+   "lesion": true,
+   "spikes": 620158,
+   "active": 8025,
+   "output_spikes": 197,
+   "output_first_ms": 28.0,
+   "wing_hz": 68.5
+  },
+  "touch": {
+   "stimulus": "touch",
+   "output": "groom",
+   "lesion": false,
+   "spikes": 169810,
+   "active": 1548,
+   "output_spikes": 765,
+   "output_first_ms": 6.2,
+   "wing_hz": 3.0
+  },
+  "touch_lesion": {
+   "stimulus": "touch",
+   "output": "groom",
+   "lesion": true,
+   "spikes": 169411,
+   "active": 1549,
+   "output_spikes": 763,
+   "output_first_ms": 6.2,
+   "wing_hz": 1.5
   }
  }
 }

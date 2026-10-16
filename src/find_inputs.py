@@ -1,4 +1,4 @@
-"""Шаг 1: найти сенсорные входы (вкусовые рецепторы) и выходы (хоботок).
+"""Шаг 1: найти сенсорные входы (вкус, тень, запах, касание) и выходы.
 
 Списки рецепторных нейронов взяты из Shiu et al. 2024 (Nature),
 github.com/philshiu/Drosophila_brain_model, figures.ipynb — это root_id
@@ -68,6 +68,14 @@ def main():
             if a < b:
                 assert not set(inputs[a]) & set(inputs[b]), f'{a} и {b} пересекаются'
 
+    # другие чувства (типы клеток FlyWire; проверено в эксперименте, см. scenarios.py)
+    by_type = lambda *ts: sorted(int(i) for t in ts for i in c.where('cell_type', t))
+    inputs['loom'] = by_type('LPLC2')                  # детекторы приближения — тень
+    inputs['smell'] = by_type('ORN_DM1', 'ORN_DM2')    # обонятельные нейроны запаха фруктов/уксуса
+    inputs['touch'] = by_type('BM_InOm')               # щетинки между фасетками глаз: касание -> чистка головы
+    for name in ('loom', 'smell', 'touch'):
+        print(f'{name:<7} {len(inputs[name])} нейронов  типы {describe(c, inputs[name])}')
+
     mn9 = sorted(c.where('cell_type', 'CB0701').tolist())
     assert by_root[MN9_ROOT] in mn9
     proboscis = sorted(set(ch['channels']['proboscis']['all']) | set(mn9))
@@ -81,6 +89,10 @@ def main():
             'proboscis': proboscis,
             'mn9': mn9,
             'escape': ch['channels']['escape']['all'],
+            'walk': sorted(set(ch['channels']['walk']['all']) | set(ch['channels']['turn']['all'])),
+            # нисходящие, которые сильнее всего отвечают на касание щетинок;
+            # что это команды чистки — интерпретация, не проверено
+            'groom': by_type('DNg84', 'DNg35'),
         },
     }
     OUT.write_text(json.dumps(out, indent=1))
