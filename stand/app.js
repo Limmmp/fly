@@ -484,6 +484,7 @@ function start(stim) {
   setInvolved([...new Set(r.n)].concat(s.stim));
   VIEWS[key] = VIEWS[key] || zoomFor(key);
   camGoal = VIEWS[key];
+  resetView(); view.last = 0;   // новый стимул — камера показывает его цепь
   clearTimeout(idleTimer);
   $('result').classList.add('hidden');
   document.querySelectorAll('.stim').forEach(b => b.classList.toggle('active', b.dataset.stim === stim));
@@ -494,6 +495,7 @@ function start(stim) {
   flyState.slow = s.level === 'slow';
   if (props[stim]) props[stim].visible = true;
   if (window.FlySound) window.FlySound.play(s, D, SLOW);
+  broadcast();
 }
 
 function finish() {
@@ -507,6 +509,8 @@ function finish() {
     setInvolved(null);
     resetFly();
     play = null;
+    lastResult = null;
+    broadcast();
   }, IDLE_RESET_MS);
 }
 
@@ -539,6 +543,8 @@ function showResult(stim, s) {
   $('result-text').textContent = R[2];
   $('result').classList.remove('hidden');
   setStatus(null, '');
+  lastResult = { icon: R[0], title: R[1], text: R[2] };
+  broadcast();
 }
 
 function setStatus(icon, text) {
@@ -647,21 +653,99 @@ function step(now) {
   requestAnimationFrame(step);
 }
 
+// ---------- вид, которым управляет посетитель: зум, поворот, сдвиг ----------
+const VIEW_IDLE_MS = 40000;   // через сколько без касаний вид возвращается сам
+const view = { zoom: 1, yaw: 0, pitch: 0, pan: new THREE.Vector3(), last: 0 };
+const viewGoal = { zoom: 1, yaw: 0, pitch: 0, pan: new THREE.Vector3() };
+function touchView() { view.last = performance.now(); }
+function resetView() {
+  viewGoal.zoom = 1; viewGoal.yaw = 0; viewGoal.pitch = 0; viewGoal.pan.set(0, 0, 0);
+}
+function zoomBy(f, ndcX = 0, ndcY = 0) {
+  const z = THREE.MathUtils.clamp(viewGoal.zoom * f, 0.6, 14);
+  f = z / viewGoal.zoom;
+  // приближаем к точке под пальцем: сдвигаем центр к ней
+  if (ndcX || ndcY) {
+    const p = new THREE.Vector3(ndcX, ndcY, 0.5).unproject(camera);
+    const dir = p.sub(camera.position).normalize();
+    const center = cam.target.clone().add(view.pan);
+    const hit = camera.position.clone().addScaledVector(dir, camera.position.distanceTo(center));
+    viewGoal.pan.add(hit.sub(center).multiplyScalar(1 - 1 / f));
+  }
+  viewGoal.zoom = z;
+  touchView();
+}
+function rotateBy(dx, dy) {
+  viewGoal.yaw -= dx * 0.006;
+  viewGoal.pitch = THREE.MathUtils.clamp(viewGoal.pitch + dy * 0.006, -1.2, 1.2);
+  touchView();
+}
+function panBy(dx, dy) {
+  // сдвиг в плоскости экрана, в единицах сцены
+  const h = brainCanvas.getBoundingClientRect().height || 1;
+  const scale = (cam.h / view.zoom) / h;
+  const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+  const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+  viewGoal.pan.addScaledVector(right, -dx * scale).addScaledVector(up, dy * scale);
+  touchView();
+}
+(() => {
+  const el = brainCanvas, pts = new Map();
+  let pinch = 0, mid = null;
+  const ndc = (x, y) => { const r = el.getBoundingClientRect(); return [((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1]; };
+  el.style.touchAction = 'none';
+  el.addEventListener('wheel', e => { e.preventDefault(); zoomBy(Math.exp(-e.deltaY * 0.0015), ...ndc(e.clientX, e.clientY)); }, { passive: false });
+  el.addEventListener('dblclick', () => { resetView(); touchView(); });
+  el.addEventListener('pointerdown', e => {
+    el.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY, b: e.button, s: e.shiftKey });
+    pinch = 0; mid = null;
+  });
+  const up = e => { pts.delete(e.pointerId); pinch = 0; mid = null; };
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  el.addEventListener('pointermove', e => {
+    const p = pts.get(e.pointerId);
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if (pts.size === 2) {
+      // два пальца: щипок — зум, общее движение — сдвиг
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y), m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      if (pinch) zoomBy(d / pinch, ...ndc(m.x, m.y));
+      if (mid) panBy((m.x - mid.x) / 2, (m.y - mid.y) / 2);
+      pinch = d; mid = m;
+    } else if (p.b === 2 || p.s) panBy(dx, dy);
+    else rotateBy(dx, dy);
+  });
+})();
+
 function drawBrain(now, dtReal) {
   const [w, h, dpr] = resize(brainR, brainCanvas);
   camera.aspect = w / h;
   const k = 1 - Math.exp(-dtReal / 600);
   cam.target.lerp(camGoal.target, k);
   cam.w += (camGoal.w - cam.w) * k; cam.h += (camGoal.h - cam.h) * k;
+  // вид посетителя: плавно к цели; давно не трогали — сам возвращается
+  if (view.last && now - view.last > VIEW_IDLE_MS) { resetView(); view.last = 0; }
+  const kv = 1 - Math.exp(-dtReal / 160);
+  view.zoom += (viewGoal.zoom - view.zoom) * kv;
+  view.yaw += (viewGoal.yaw - view.yaw) * kv;
+  view.pitch += (viewGoal.pitch - view.pitch) * kv;
+  view.pan.lerp(viewGoal.pan, kv);
   const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-  const dist = Math.max(cam.h / 2 / tanHalf, cam.w / 2 / tanHalf / camera.aspect) * 1.05;
-  // камера слегка покачивается — видно, что мозг объёмный
-  const yaw = 0.45 * Math.sin(now * 0.00018), pitch = 0.12 + 0.06 * Math.sin(now * 0.00011);
+  const dist = Math.max(cam.h / 2 / tanHalf, cam.w / 2 / tanHalf / camera.aspect) * 1.05 / view.zoom;
+  // камера слегка покачивается — видно, что мозг объёмный; пока человек крутит сам — не качаем
+  const sway = view.last ? 0 : 1;
+  const yaw = view.yaw + sway * 0.45 * Math.sin(now * 0.00018);
+  const pitch = THREE.MathUtils.clamp(view.pitch + 0.12 + sway * 0.06 * Math.sin(now * 0.00011), -1.4, 1.4);
+  const tgt = cam.target.clone().add(view.pan);
   camera.position.set(
-    cam.target.x + dist * Math.sin(yaw) * Math.cos(pitch),
-    cam.target.y + dist * Math.sin(pitch),
-    cam.target.z + dist * Math.cos(yaw) * Math.cos(pitch));
-  camera.lookAt(cam.target);
+    tgt.x + dist * Math.sin(yaw) * Math.cos(pitch),
+    tgt.y + dist * Math.sin(pitch),
+    tgt.z + dist * Math.cos(yaw) * Math.cos(pitch));
+  camera.lookAt(tgt);
   // макет может сдвинуть кадр, чтобы мозг не прятался под панелями
   const o = window.STAND_OPTS || {};
   if (o.shiftX || o.shiftY) camera.setViewOffset(w, h, w * (o.shiftX || 0), h * (o.shiftY || 0), w, h);
@@ -783,30 +867,81 @@ function drawFly(now, dtReal) {
 // =====================================================================
 // Управление
 // =====================================================================
+let lastResult = null;
 function setLesion(on) {
   lesionOn = on;
-  $('lesion').setAttribute('aria-pressed', String(on));
-  $('lesion-text').textContent = on ? 'Нейрон сломан' : 'Сломать нейрон';
+  if ($('lesion')) {
+    $('lesion').setAttribute('aria-pressed', String(on));
+    $('lesion-text').textContent = on ? 'Нейрон сломан' : 'Сломать нейрон';
+  }
   if (play) start(play.stim);
+  broadcast();
 }
 
+// Все команды — в одном месте: от кнопок, клавиатуры и пульта на втором экране.
+function command(c) {
+  if (!c || typeof c !== 'object') return;
+  if (c.type === 'stim' && STIM[c.stim] && D.scenarios[c.stim]) start(c.stim);
+  else if (c.type === 'lesion') setLesion(c.on == null ? !lesionOn : !!c.on);
+  else if (c.type === 'zoom') zoomBy(c.f > 0 ? c.f : 1);
+  else if (c.type === 'rotate') rotateBy(+c.dx || 0, +c.dy || 0);
+  else if (c.type === 'reset') { resetView(); touchView(); }
+  else if (c.type === 'hello') broadcast();
+}
+
+// ---------- второй экран: пульт ----------
+// Основной канал — окно пульта, открытое отсюда (postMessage работает и через file://).
+// Запасной — localStorage: если обе страницы открыты двойным кликом по отдельности.
+let ctrlWin = null;
+function openControl() {
+  ctrlWin = window.open('control.html', 'fly-control', 'width=1100,height=760');
+}
+function broadcast() {
+  const st = {
+    kind: 'fly-state', stim: play ? play.stim : null, playing: !!(play && !play.done),
+    lesion: lesionOn, result: lastResult, t: Date.now(),
+  };
+  try { if (ctrlWin && !ctrlWin.closed) ctrlWin.postMessage(st, '*'); } catch (e) { /* окно закрыто */ }
+  try { localStorage.setItem('fly-state', JSON.stringify(st)); } catch (e) { /* хранилище недоступно */ }
+}
+window.addEventListener('message', e => {
+  if (e.data && e.data.kind === 'fly-cmd') {
+    if (e.source && e.source !== window) ctrlWin = e.source;   // запоминаем пульт, чтобы отвечать ему
+    command(e.data);
+  }
+});
+window.addEventListener('storage', e => {
+  if (e.key !== 'fly-cmd' || !e.newValue) return;
+  try { command(JSON.parse(e.newValue)); } catch (er) { /* мусор в хранилище */ }
+});
+
 document.querySelectorAll('.stim').forEach(b =>
-  b.addEventListener('pointerdown', () => start(b.dataset.stim)));
-$('lesion').addEventListener('pointerdown', () => setLesion(!lesionOn));
+  b.addEventListener('pointerdown', () => command({ type: 'stim', stim: b.dataset.stim })));
+if ($('lesion')) $('lesion').addEventListener('pointerdown', () => command({ type: 'lesion' }));
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('pointerdown', () => {
+  const v = b.dataset.view;
+  command(v === 'in' ? { type: 'zoom', f: 1.4 } : v === 'out' ? { type: 'zoom', f: 1 / 1.4 } : { type: 'reset' });
+}));
+if ($('open-control')) $('open-control').addEventListener('click', openControl);
 window.addEventListener('keydown', e => {
   if (e.repeat) return;
   const k = STIM_KEYS[+e.key - 1];
-  if (k && D.scenarios[k]) start(k);
-  if (e.key === '0' || e.key === 'l' || e.key === 'д') setLesion(!lesionOn);
+  if (k) command({ type: 'stim', stim: k });
+  if (e.key === '0' || e.key === 'l' || e.key === 'д') command({ type: 'lesion' });
+  if (e.key === '+' || e.key === '=') command({ type: 'zoom', f: 1.4 });
+  if (e.key === '-' || e.key === '_') command({ type: 'zoom', f: 1 / 1.4 });
+  if (e.key === 'r' || e.key === 'к') command({ type: 'reset' });
+  if (e.key === 'p' || e.key === 'з') openControl();
 });
-$('info-text').textContent = D.attribution +
+if ($('info-text')) $('info-text').textContent = D.attribution +
   '\nУпаковка данных: github.com/RaphaelSR/fly-brain-bench (CC-BY 4.0). 3D: three.js (MIT). Шрифт: Manrope (SIL OFL).' +
   '\nЦветной "клубок" — связи из коннектома (по две самые сильные на нейрон), а не форма отростков.';
-$('info-btn').addEventListener('click', () => $('info').classList.remove('hidden'));
-$('info-close').addEventListener('click', () => $('info').classList.add('hidden'));
+if ($('info-btn')) $('info-btn').addEventListener('click', () => $('info').classList.remove('hidden'));
+if ($('info-close')) $('info-close').addEventListener('click', () => $('info').classList.add('hidden'));
 window.addEventListener('contextmenu', e => e.preventDefault());
 
 fillIcons();
 setStatus('down', 'Выбери, что показать мухе');
 setProboscis(0);
+broadcast();
 requestAnimationFrame(step);

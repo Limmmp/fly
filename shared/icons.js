@@ -120,6 +120,18 @@
       <path d="M16 10h32l-7 10 7 10H16Z" fill="#ff5468"/>`),
     wind: svg(`<path d="M8 24h30a8 8 0 1 0-8-8M8 34h40a8 8 0 1 1-8 8M8 44h20" fill="none" stroke="#9aa0c6" stroke-width="3.6"/>`),
 
+    // вид: зум, сброс, поворот, пульт
+    plus: svg(`<path d="M32 14v36M14 32h36" fill="none" stroke="currentColor" stroke-width="5"/>`),
+    minus: svg(`<path d="M14 32h36" fill="none" stroke="currentColor" stroke-width="5"/>`),
+    reset: svg(`<path d="M18 22a18 18 0 1 1-2 18" fill="none" stroke="currentColor" stroke-width="4.5"/>
+      <path d="M10 12v14h14" fill="none" stroke="currentColor" stroke-width="4.5"/>`),
+    left: svg(`<path d="M38 14 20 32l18 18" fill="none" stroke="currentColor" stroke-width="5"/>`),
+    right: svg(`<path d="M26 14l18 18-18 18" fill="none" stroke="currentColor" stroke-width="5"/>`),
+    up: svg(`<path d="M14 38 32 20l18 18" fill="none" stroke="currentColor" stroke-width="5"/>`),
+    downArrow: svg(`<path d="M14 26l18 18 18-18" fill="none" stroke="currentColor" stroke-width="5"/>`),
+    remote: svg(`<rect x="18" y="6" width="28" height="52" rx="8" fill="none" stroke="currentColor" stroke-width="4"/>
+      <circle cx="32" cy="20" r="5" fill="currentColor" stroke="none"/><path d="M26 34h12M26 42h12" stroke="currentColor" stroke-width="4"/>`),
+
     // служебные
     down: svg(`<path d="M18 24 32 40 46 24" fill="none" stroke="currentColor" stroke-width="5"/>`),
     info: svg(`<circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="4"/>

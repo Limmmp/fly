@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Муха в проводах — экран</title>
+<link rel="stylesheet" href="../shared/theme.css">
+<link rel="stylesheet" href="big.css">
+</head>
+<body class="screen-only">
+<!-- Экран для зрителей: мозг и муха, без кнопок. Управление — на втором
+     экране (control.html). Открыть пульт: кнопка "пульт" или клавиша P. -->
+<section class="brain">
+  <canvas id="brain"></canvas>
+  <div id="tags"></div>
+</section>
+<div class="vignette"></div>
+
+<header class="glass head">
+  <div class="eyebrow">Интерактивный экспонат</div>
+  <h1>Муха в&nbsp;проводах</h1>
+  <p class="sub">Настоящий мозг мухи — <b class="num">138 639</b> нейронов и&nbsp;2,7&nbsp;млн связей</p>
+  <div id="status" class="status"></div>
+  <div class="stats">
+    <div class="counters">
+      <div><div class="eyebrow">Вспыхнуло нейронов</div><span id="cnt-neurons" class="num">0</span></div>
+      <div><div class="eyebrow">Сигналов</div><span id="cnt-spikes" class="num">0</span></div>
+    </div>
+    <ul class="legend">
+      <li style="--c:#ffc83c">датчики</li>
+      <li style="--c:#4fc3ff">мозг</li>
+      <li style="--c:#ff5ad2">команды телу</li>
+      <li style="--c:#7dff7a">мышцы</li>
+    </ul>
+  </div>
+  <div class="credits">FlyWire 783 · CC-BY 4.0 · модель Shiu et al. 2024 ·
+    <button id="info-btn" class="link"><span class="ico-s" data-icon="info"></span>источники</button> ·
+    <button id="open-control" class="link"><span class="ico-s" data-icon="remote"></span>пульт</button></div>
+</header>
+
+<aside class="side">
+  <div class="glass flybox">
+    <div class="eyebrow box-title">Муха</div>
+    <canvas id="fly"></canvas>
+    <div class="meter">
+      <span id="meter-label">Хоботок</span>
+      <div class="meter-bar"><div id="meter-fill"></div></div>
+    </div>
+  </div>
+  <div id="result" class="glass result hidden">
+    <div id="result-icon" class="result-icon"></div>
+    <div>
+      <div id="result-title" class="result-title"></div>
+      <div id="result-text" class="result-text"></div>
+    </div>
+  </div>
+</aside>
+
+<div class="zoom glass">
+  <button data-view="in" aria-label="Приблизить"><span class="ico" data-icon="plus"></span></button>
+  <button data-view="out" aria-label="Отдалить"><span class="ico" data-icon="minus"></span></button>
+  <button data-view="reset" aria-label="Сбросить вид"><span class="ico" data-icon="reset"></span></button>
+</div>
+
+<div id="info" class="overlay hidden"><div class="overlay-box glass">
+  <pre id="info-text"></pre>
+  <button id="info-close" class="big">Закрыть</button>
+</div></div>
+
+<script>
+  // кнопок внизу нет — мозг почти по центру, чуть влево от панели с мухой
+  window.STAND_OPTS = { shiftX: -0.04, shiftY: 0.02 };
+</script>
+<script src="vendor/three.min.js"></script>
+<script src="../shared/icons.js"></script>
+<script src="../data/export/fly_data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

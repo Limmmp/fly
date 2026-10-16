@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Муха в проводах — пульт</title>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+/* Пульт для второго экрана. Шрифты от 24px. */
+* { box-sizing: border-box; }
+html { font-size: clamp(24px, 1.25vw, 40px); }
+html, body { height: 100%; margin: 0; }
+body {
+  background: radial-gradient(70% 60% at 30% 20%, #0d1230 0%, transparent 70%), var(--bg);
+  color: var(--text); font: 500 1rem/1.25 var(--font);
+  display: grid; grid-template-rows: auto auto 1fr; gap: .9rem; padding: 1rem 1.3rem;
+  overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: manipulation;
+}
+header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+h1 { margin: 0; font-size: 1.8rem; font-weight: 800; letter-spacing: -.02em; }
+.link-state { display: flex; align-items: center; gap: .5rem; color: var(--muted); font-weight: 600; }
+.link-state::before { content: ""; width: .7rem; height: .7rem; border-radius: 50%; background: var(--dim); }
+.link-state.on { color: var(--text); }
+.link-state.on::before { background: var(--motor); box-shadow: 0 0 .6rem var(--motor); }
+
+.now { display: grid; grid-template-columns: auto 1fr; gap: 1rem; align-items: center; padding: .9rem 1.2rem; min-height: 6rem; }
+.now-icon { width: 3.6rem; height: 3.6rem; }
+.now-icon svg { width: 100%; height: 100%; }
+.now-title { font-size: 1.5rem; font-weight: 800; }
+.now-text { color: var(--muted); }
+
+main { display: grid; grid-template-columns: 1fr auto; gap: 1rem; min-height: 0; }
+.pads { display: grid; grid-template-rows: auto 1fr auto 1fr auto; gap: .5rem; min-height: 0; }
+.row { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; min-height: 0; }
+button { font: inherit; cursor: pointer; }
+.stim, .lesion {
+  --accent: #fff;
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem;
+  font-size: 1.3rem; font-weight: 800; color: var(--text);
+  border-radius: 1.3rem; border: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 14%, transparent), transparent), rgba(10, 12, 28, .8);
+  box-shadow: 0 .3rem 0 rgba(0, 0, 0, .45);
+  transition: transform .08s, box-shadow .08s, background .2s, border-color .2s;
+}
+.stim:active, .lesion:active { transform: translateY(.2rem); box-shadow: 0 .05rem 0 rgba(0, 0, 0, .45); }
+.stim .ico, .lesion .ico { width: 3.2rem; height: 3.2rem; display: inline-flex; }
+.ico svg { width: 100%; height: 100%; }
+kbd { position: absolute; right: .7rem; top: .45rem; font: 600 max(24px, .75rem) var(--font); color: var(--dim); }
+.stim[data-stim="sugar"] { --accent: var(--sugar); }
+.stim[data-stim="bitter"] { --accent: var(--bitter); }
+.stim[data-stim="water"] { --accent: var(--water); }
+.stim[data-stim="loom"] { --accent: #b8bde6; }
+.stim[data-stim="smell"] { --accent: #c39bff; }
+.stim[data-stim="touch"] { --accent: #e8ecff; }
+.lesion { --accent: var(--neuron); flex-direction: row; gap: 1rem; min-height: 4.4rem; }
+.stim.active, .lesion[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 36%, transparent), color-mix(in srgb, var(--accent) 10%, transparent)), rgba(10, 12, 28, .8);
+  box-shadow: 0 .3rem 0 rgba(0, 0, 0, .45), 0 0 1.4rem color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.lesion[aria-pressed="true"] { --accent: var(--danger); }
+
+.view { display: grid; grid-template-rows: auto auto auto 1fr; gap: .6rem; padding: .9rem; align-content: start; width: 11.5rem; }
+.vbtn {
+  height: 3.4rem; display: flex; align-items: center; justify-content: center; gap: .5rem;
+  border-radius: 1rem; border: 1px solid var(--line-2); background: rgba(8, 10, 24, .55); color: var(--text); font-weight: 700;
+}
+.vbtn:active { transform: scale(.95); background: rgba(255, 255, 255, .08); }
+.vbtn .ico { width: 1.6rem; height: 1.6rem; display: inline-flex; }
+.dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; margin-top: .3rem; }
+.dpad .vbtn { height: 3rem; }
+.dpad span { display: block; }
+.hint { color: var(--dim); font-size: max(24px, .75rem); line-height: 1.3; margin-top: .4rem; }
+/* невысокий экран: всё должно влезть без прокрутки */
+@media (max-height: 900px) {
+  body { gap: .6rem; padding: .7rem 1rem; }
+  h1 { font-size: 1.4rem; }
+  .now { min-height: 4.6rem; padding: .6rem 1rem; }
+  .now-icon { width: 2.8rem; height: 2.8rem; }
+  .now-title { font-size: 1.2rem; }
+  .stim .ico, .lesion .ico { width: 2.4rem; height: 2.4rem; }
+  .stim { font-size: 1.1rem; }
+  .lesion { min-height: 3.4rem; font-size: 1.1rem; }
+  .vbtn { height: 2.7rem; }
+  .dpad .vbtn { height: 2.4rem; }
+  .hint { display: none; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="eyebrow">Пульт</div>
+    <h1>Муха в&nbsp;проводах</h1>
+  </div>
+  <div id="link" class="link-state">нет связи с экраном</div>
+</header>
+
+<section class="now glass">
+  <div id="now-icon" class="now-icon"></div>
+  <div>
+    <div id="now-title" class="now-title">Выбери, что показать мухе</div>
+    <div id="now-text" class="now-text">Нажми на любую кнопку — на большом экране побежит сигнал</div>
+  </div>
+</section>
+
+<main>
+  <div class="pads">
+    <div class="eyebrow">Вкус</div>
+    <div class="row">
+      <button class="stim" data-stim="sugar"><span class="ico" data-icon="sugar"></span>Сахар<kbd>1</kbd></button>
+      <button class="stim" data-stim="bitter"><span class="ico" data-icon="bitter"></span>Горькое<kbd>2</kbd></button>
+      <button class="stim" data-stim="water"><span class="ico" data-icon="water"></span>Вода<kbd>3</kbd></button>
+    </div>
+    <div class="eyebrow">Мир вокруг</div>
+    <div class="row">
+      <button class="stim" data-stim="loom"><span class="ico" data-icon="loom"></span>Тень<kbd>4</kbd></button>
+      <button class="stim" data-stim="smell"><span class="ico" data-icon="smell"></span>Запах<kbd>5</kbd></button>
+      <button class="stim" data-stim="touch"><span class="ico" data-icon="touch"></span>Касание<kbd>6</kbd></button>
+    </div>
+    <button id="lesion" class="lesion" aria-pressed="false"><span class="ico" data-icon="lesion"></span><span id="lesion-text">Сломать нейрон</span><kbd>0</kbd></button>
+  </div>
+
+  <aside class="view glass">
+    <div class="eyebrow">Мозг</div>
+    <button class="vbtn" data-cmd="in"><span class="ico" data-icon="plus"></span>Ближе</button>
+    <button class="vbtn" data-cmd="out"><span class="ico" data-icon="minus"></span>Дальше</button>
+    <div>
+      <div class="dpad">
+        <span></span><button class="vbtn" data-rot="0,-1"><span class="ico" data-icon="up"></span></button><span></span>
+        <button class="vbtn" data-rot="-1,0"><span class="ico" data-icon="left"></span></button>
+        <button class="vbtn" data-cmd="reset"><span class="ico" data-icon="reset"></span></button>
+        <button class="vbtn" data-rot="1,0"><span class="ico" data-icon="right"></span></button>
+        <span></span><button class="vbtn" data-rot="0,1"><span class="ico" data-icon="downArrow"></span></button><span></span>
+      </div>
+      <div class="hint">Стрелки — повернуть мозг, пока держишь</div>
+    </div>
+  </aside>
+</main>
+
+<script src="../shared/icons.js"></script>
+<script>
+'use strict';
+// Пульт шлёт команды экрану (screen.html), экран отвечает своим состоянием.
+// Канал 1: окно пульта открыто с экрана — postMessage в window.opener.
+// Канал 2 (запасной): localStorage, если пульт открыт отдельно двойным кликом.
+const $ = id => document.getElementById(id);
+const LABEL = { sugar: 'Сахар', bitter: 'Горькое', water: 'Вода', loom: 'Тень', smell: 'Запах', touch: 'Касание' };
+let lastState = 0;
+
+function send(cmd) {
+  const msg = { kind: 'fly-cmd', ...cmd, t: Date.now() + Math.random() };
+  let viaOpener = false;
+  try { if (window.opener && !window.opener.closed) { window.opener.postMessage(msg, '*'); viaOpener = true; } } catch (e) { /* нет доступа */ }
+  if (!viaOpener) {
+    try { localStorage.setItem('fly-cmd', JSON.stringify(msg)); } catch (e) { /* хранилище недоступно */ }
+  }
+}
+
+function showState(st) {
+  if (!st || st.kind !== 'fly-state') return;
+  lastState = Date.now();
+  $('link').classList.add('on');
+  $('link').textContent = 'экран на связи';
+  document.querySelectorAll('.stim').forEach(b => b.classList.toggle('active', b.dataset.stim === st.stim));
+  $('lesion').setAttribute('aria-pressed', String(!!st.lesion));
+  $('lesion-text').textContent = st.lesion ? 'Нейрон сломан' : 'Сломать нейрон';
+  if (st.result && !st.playing) {
+    $('now-icon').innerHTML = ICONS[st.result.icon] || '';
+    $('now-title').textContent = st.result.title;
+    $('now-text').textContent = st.result.text;
+  } else if (st.stim) {
+    $('now-icon').innerHTML = ICONS[st.stim] || '';
+    $('now-title').textContent = `${LABEL[st.stim]} — сигнал бежит по мозгу…`;
+    $('now-text').textContent = 'Смотри на большой экран';
+  } else {
+    $('now-icon').innerHTML = ICONS.down;
+    $('now-title').textContent = 'Выбери, что показать мухе';
+    $('now-text').textContent = 'Нажми на любую кнопку — на большом экране побежит сигнал';
+  }
+}
+window.addEventListener('message', e => showState(e.data));
+window.addEventListener('storage', e => {
+  if (e.key === 'fly-state' && e.newValue) { try { showState(JSON.parse(e.newValue)); } catch (er) { /* мусор */ } }
+});
+// давно нет ответа экрана — показываем, что связи нет
+setInterval(() => {
+  if (Date.now() - lastState > 30000) { $('link').classList.remove('on'); $('link').textContent = 'нет связи с экраном'; send({ type: 'hello' }); }
+}, 5000);
+
+document.querySelectorAll('.stim').forEach(b => b.addEventListener('pointerdown', () => send({ type: 'stim', stim: b.dataset.stim })));
+$('lesion').addEventListener('pointerdown', () => send({ type: 'lesion' }));
+document.querySelectorAll('[data-cmd]').forEach(b => b.addEventListener('pointerdown', () => {
+  const c = b.dataset.cmd;
+  send(c === 'in' ? { type: 'zoom', f: 1.4 } : c === 'out' ? { type: 'zoom', f: 1 / 1.4 } : { type: 'reset' });
+}));
+// поворот: пока кнопку держат, шлём маленькие шаги
+document.querySelectorAll('[data-rot]').forEach(b => {
+  const [dx, dy] = b.dataset.rot.split(',').map(Number);
+  let timer = null;
+  const stop = () => { clearInterval(timer); timer = null; };
+  b.addEventListener('pointerdown', e => {
+    b.setPointerCapture(e.pointerId);
+    send({ type: 'rotate', dx: dx * 14, dy: dy * 14 });
+    timer = setInterval(() => send({ type: 'rotate', dx: dx * 14, dy: dy * 14 }), 60);
+  });
+  b.addEventListener('pointerup', stop);
+  b.addEventListener('pointercancel', stop);
+});
+window.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  const keys = ['sugar', 'bitter', 'water', 'loom', 'smell', 'touch'];
+  const k = keys[+e.key - 1];
+  if (k) send({ type: 'stim', stim: k });
+  if (e.key === '0' || e.key === 'l' || e.key === 'д') send({ type: 'lesion' });
+  if (e.key === '+' || e.key === '=') send({ type: 'zoom', f: 1.4 });
+  if (e.key === '-' || e.key === '_') send({ type: 'zoom', f: 1 / 1.4 });
+  if (e.key === 'r' || e.key === 'к') send({ type: 'reset' });
+});
+window.addEventListener('contextmenu', e => e.preventDefault());
+
+fillIcons();
+$('now-icon').innerHTML = ICONS.down;
+// если экран уже открыт — он пришлёт своё состояние; читаем последнее сохранённое
+try { const st = JSON.parse(localStorage.getItem('fly-state') || 'null'); if (st && Date.now() - st.t < 60000) showState(st); } catch (e) { /* нет */ }
+send({ type: 'hello' });
+</script>
+</body>
+</html>
