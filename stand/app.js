@@ -7,8 +7,8 @@ const D = window.FLY_DATA;
 const SLOW = 6;              // 1 с модели показываем за 6 с
 const FLASH_MS = 350;        // сколько светится нейрон после спайка (реальное время)
 const PULSE_MS = 280;        // сколько импульс бежит по проводу (для глаза, не физиология)
-const PULSE_MIN_SYN = 15;    // импульсы рисуем только по толстым связям
-const WIRE_MIN_SYN = 10;     // провода — от 10 синапсов, иначе ядро сливается в белое пятно
+const PULSE_MIN_SYN = 25;    // импульсы рисуем только по толстым связям
+const WIRE_MIN_SYN = 15;     // нити — от 15 синапсов, иначе ядро сливается в белое пятно
 const IDLE_RESET_MS = 12000; // через сколько после результата вернуться к целому мозгу
 const GROUP_COLORS = ['#ffc83c', '#4fc3ff', '#ff5ad2', '#7dff7a']; // сенсорные, центральные, нисходящие, моторные
 const INHIB_COLOR = '#8a7dff';
@@ -31,7 +31,7 @@ for (let i = 0; i < N; i++) {
   npos.set(p, 3 * i);
 }
 
-// мягкая круглая точка для спрайтов
+// мягкая круглая точка (для тени под мухой)
 function glowTexture(size = 64) {
   const cv = document.createElement('canvas'); cv.width = cv.height = size;
   const g = cv.getContext('2d');
@@ -49,12 +49,31 @@ const GLOW = glowTexture();
 // =====================================================================
 const brainCanvas = $('brain');
 const brainR = new THREE.WebGLRenderer({ canvas: brainCanvas, antialias: true });
-brainR.setClearColor(0x05060f, 1);
+brainR.setClearColor(0x04050c, 1);
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x05060f, 0.12);
+scene.fog = new THREE.FogExp2(0x04050c, 0.12);
 const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 50);
 
-// фон: все 138 639 нейронов, оттенок по глубине
+// фон: все 138 639 нейронов — мелкая чёткая "пыль", оттенок по глубине
+const dustMat = new THREE.ShaderMaterial({
+  uniforms: { uPx: { value: 1.6 } },
+  vertexShader: `
+    attribute vec3 color; uniform float uPx; varying vec3 vColor;
+    void main() {
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = uPx;
+      vColor = color;
+    }`,
+  fragmentShader: `
+    varying vec3 vColor;
+    void main() {
+      float r = length(gl_PointCoord * 2.0 - 1.0);
+      if (r > 1.0) discard;
+      gl_FragColor = vec4(vColor, 1.0 - smoothstep(0.6, 1.0, r));
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+});
 (() => {
   const bytes = Uint8Array.from(atob(D.background), ch => ch.charCodeAt(0));
   const q = new Uint16Array(bytes.buffer);
@@ -64,42 +83,100 @@ const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 50);
     const p = toScene(q[3 * i], q[3 * i + 1], q[3 * i + 2]);
     pos.set(p, 3 * i);
     const t = q[3 * i + 2] / D.size[2]; // 0 спереди .. 1 сзади
-    col[3 * i] = 0.20 - 0.08 * t; col[3 * i + 1] = 0.20 - 0.06 * t; col[3 * i + 2] = 0.42 - 0.10 * t;
+    col[3 * i] = 0.16 - 0.07 * t; col[3 * i + 1] = 0.17 - 0.06 * t; col[3 * i + 2] = 0.34 - 0.10 * t;
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  const m = new THREE.PointsMaterial({
-    size: 0.022, map: GLOW, vertexColors: true, transparent: true,
-    depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.55,
-  });
-  scene.add(new THREE.Points(g, m));
+  scene.add(new THREE.Points(g, dustMat));
 })();
 
-// провода: связи между активными нейронами, яркость по активности пресинапса
+// активность нейронов цепи: 0..1, в текстуре — её читают шейдеры нитей
+const flash = new Float32Array(N);
+const flashBytes = new Uint8Array(4 * N);
+const flashTex = new THREE.DataTexture(flashBytes, N, 1, THREE.RGBAFormat);
+const involved = new Float32Array(N).fill(1);   // 1 — нейрон участвует в выбранном вкусе
+function setInvolved(list) {
+  involved.fill(list ? 0.12 : 1);
+  if (list) for (const i of list) involved[i] = 1;
+  for (let i = 0; i < N; i++) flashBytes[4 * i + 1] = Math.round(involved[i] * 255);
+  flashTex.needsUpdate = true;
+  nGeo.attributes.involved.needsUpdate = true;
+}
+
+// нити: каждая связь — тонкая кривая Безье, выгнутая к центру цепи,
+// поэтому связи собираются в пучки, как настоящие тракты отростков.
+// Концы и сами связи — из коннектома; изгиб — только для наглядности.
 const WIRES = D.edges.filter(e => e[2] >= WIRE_MIN_SYN);
 const E = WIRES.length;
-const edgePos = new Float32Array(6 * E), edgeCol = new Float32Array(6 * E);
-const edgeBase = new Float32Array(3 * E);   // цвет связи без яркости
-const edgeW = new Float32Array(E);
+const SEG = 12;
+const CENTER = (() => {
+  const v = [0, 0, 0];
+  for (let i = 0; i < N; i++) for (let k = 0; k < 3; k++) v[k] += npos[3 * i + k] / N;
+  return v;
+})();
+const ctrl = new Float32Array(3 * E);   // контрольная точка кривой каждой связи
+const edgeBase = new Float32Array(3 * E);
 const outEdges = Array.from({ length: N }, () => []);
+const fPos = new Float32Array(E * SEG * 2 * 3), fCol = new Float32Array(E * SEG * 2 * 3);
+const fT = new Float32Array(E * SEG * 2), fPre = new Float32Array(E * SEG * 2), fW = new Float32Array(E * SEG * 2);
+function bez(e, a, b, u, out) {
+  const w = 1 - u;
+  for (let k = 0; k < 3; k++) {
+    out[k] = w * w * npos[3 * a + k] + 2 * w * u * ctrl[3 * e + k] + u * u * npos[3 * b + k];
+  }
+  return out;
+}
 WIRES.forEach(([a, b, k, sign], e) => {
-  edgePos.set(npos.subarray(3 * a, 3 * a + 3), 6 * e);
-  edgePos.set(npos.subarray(3 * b, 3 * b + 3), 6 * e + 3);
+  // середина, притянутая к центру цепи, + небольшой разброс, чтобы пучок не был плоским
+  const h = Math.sin(e * 12.9898) * 43758.5453, j = (h - Math.floor(h)) - 0.5;
+  for (let d = 0; d < 3; d++) {
+    const mid = (npos[3 * a + d] + npos[3 * b + d]) / 2;
+    ctrl[3 * e + d] = mid + (CENTER[d] - mid) * 0.45 + j * 0.08 * (d === 1 ? 1 : 0.6);
+  }
   const c = new THREE.Color(sign > 0 ? GROUP_COLORS[D.neurons.group[a]] : INHIB_COLOR);
   edgeBase.set([c.r, c.g, c.b], 3 * e);
-  edgeW[e] = Math.min(1, k / 40);
   if (k >= PULSE_MIN_SYN) outEdges[a].push(e);
+  const p0 = [0, 0, 0], p1 = [0, 0, 0];
+  for (let s = 0; s < SEG; s++) {
+    bez(e, a, b, s / SEG, p0); bez(e, a, b, (s + 1) / SEG, p1);
+    const v = (e * SEG + s) * 2;
+    fPos.set(p0, 3 * v); fPos.set(p1, 3 * v + 3);
+    fCol.set([c.r, c.g, c.b], 3 * v); fCol.set([c.r, c.g, c.b], 3 * v + 3);
+    fT[v] = s / SEG; fT[v + 1] = (s + 1) / SEG;
+    fPre[v] = fPre[v + 1] = a;
+    fW[v] = fW[v + 1] = Math.min(1, k / 40);
+  }
 });
-const edgeGeo = new THREE.BufferGeometry();
-edgeGeo.setAttribute('position', new THREE.BufferAttribute(edgePos, 3));
-edgeGeo.setAttribute('color', new THREE.BufferAttribute(edgeCol, 3));
-scene.add(new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({
-  vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-})));
+const fiberGeo = new THREE.BufferGeometry();
+fiberGeo.setAttribute('position', new THREE.BufferAttribute(fPos, 3));
+fiberGeo.setAttribute('color', new THREE.BufferAttribute(fCol, 3));
+fiberGeo.setAttribute('t', new THREE.BufferAttribute(fT, 1));
+fiberGeo.setAttribute('pre', new THREE.BufferAttribute(fPre, 1));
+fiberGeo.setAttribute('w', new THREE.BufferAttribute(fW, 1));
+const fiberMat = new THREE.ShaderMaterial({
+  uniforms: { uFlash: { value: flashTex }, uN: { value: N }, uGain: { value: 1 } },
+  vertexShader: `
+    attribute vec3 color; attribute float t, pre, w;
+    uniform sampler2D uFlash; uniform float uN;
+    varying vec3 vColor; varying float vA;
+    void main() {
+      vec4 tx = texture2D(uFlash, vec2((pre + 0.5) / uN, 0.5));
+      float f = tx.r, inv = tx.g;
+      // нить ярче у начала (аксон выходит из сомы) и при спайке источника
+      float along = 1.0 - 0.55 * t;
+      vA = (0.045 * (0.2 + 0.8 * inv) + 0.2 * f * (0.3 + 0.7 * w)) * along;
+      vColor = mix(color, vec3(1.0), 0.12 * f);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: `
+    varying vec3 vColor; varying float vA; uniform float uGain;
+    void main() { gl_FragColor = vec4(vColor, vA * uGain); }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+});
+scene.add(new THREE.LineSegments(fiberGeo, fiberMat));
 
-// нейроны цепи: свой шейдер — ядро + ореол, размер растёт при спайке
-const flash = new Float32Array(N);
+// сомы: чёткий диск с ободком; при спайке — расходящееся тонкое кольцо
 const ncol = new Float32Array(3 * N);
 for (let i = 0; i < N; i++) {
   const c = new THREE.Color(GROUP_COLORS[D.neurons.group[i]]);
@@ -109,35 +186,41 @@ const nGeo = new THREE.BufferGeometry();
 nGeo.setAttribute('position', new THREE.BufferAttribute(npos, 3));
 nGeo.setAttribute('color', new THREE.BufferAttribute(ncol, 3));
 nGeo.setAttribute('flash', new THREE.BufferAttribute(flash, 1));
+nGeo.setAttribute('involved', new THREE.BufferAttribute(involved, 1));
 const nMat = new THREE.ShaderMaterial({
-  uniforms: { uScale: { value: 500 }, uSize: { value: 0.05 }, uGain: { value: 1 } },
+  uniforms: { uScale: { value: 500 }, uSize: { value: 0.016 }, uGain: { value: 1 }, uDpr: { value: 1 } },
   vertexShader: `
-    attribute vec3 color; attribute float flash;
-    uniform float uScale, uSize;
-    varying vec3 vColor; varying float vFlash;
+    attribute vec3 color; attribute float flash, involved;
+    uniform float uScale, uSize, uDpr;
+    varying vec3 vColor; varying float vFlash, vInv;
     void main() {
       vec4 mv = modelViewMatrix * vec4(position, 1.0);
       gl_Position = projectionMatrix * mv;
-      gl_PointSize = uSize * (1.0 + 1.6 * flash) * uScale / -mv.z;
-      vColor = color; vFlash = flash;
+      // сома 3..12 px, спрайт в 3 раза больше — место под кольцо
+      float soma = clamp(uSize * uScale / -mv.z, 3.0 * uDpr, 12.0 * uDpr);
+      gl_PointSize = soma * 3.0;
+      vColor = color; vFlash = flash; vInv = involved;
     }`,
   fragmentShader: `
-    varying vec3 vColor; varying float vFlash;
-    uniform float uGain;
+    varying vec3 vColor; varying float vFlash, vInv; uniform float uGain;
     void main() {
-      vec2 p = gl_PointCoord * 2.0 - 1.0;
-      float r2 = dot(p, p);
-      if (r2 > 1.0) discard;
-      float core = exp(-r2 * 10.0), halo = exp(-r2 * 3.0);
-      vec3 col = mix(vColor, vec3(1.0), core * vFlash * 0.8);
-      float a = core * (0.3 + 0.35 * vFlash) + halo * (0.04 + 0.2 * vFlash);
-      gl_FragColor = vec4(col, a * uGain);
+      float r = length(gl_PointCoord * 2.0 - 1.0);
+      if (r > 1.0) discard;
+      const float RS = 0.33;                      // радиус сомы в спрайте
+      float body = 1.0 - smoothstep(RS - 0.05, RS, r);
+      float rim = body * smoothstep(RS - 0.14, RS - 0.05, r);
+      float ringR = RS + (1.0 - vFlash) * 0.6;    // кольцо уходит наружу и гаснет
+      float ring = (1.0 - smoothstep(0.0, 0.045, abs(r - ringR))) * vFlash * step(0.05, vFlash);
+      vec3 col = mix(vColor * 0.6, vec3(1.0), 0.55 * vFlash) + rim * 0.35;
+      float a = body * (0.55 + 0.45 * vFlash) + ring * 0.7 * uGain;
+      gl_FragColor = vec4(mix(col, vColor, ring * (1.0 - body)), a * max(vInv, vFlash));
     }`,
-  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  transparent: true, depthWrite: false, blending: THREE.NormalBlending,
 });
 scene.add(new THREE.Points(nGeo, nMat));
+setInvolved(null);
 
-// импульсы, бегущие по проводам
+// импульсы: маленькие острые точки, бегущие по нитям
 const MAX_PULSES = 1500;
 const pulsePos = new Float32Array(3 * MAX_PULSES).fill(999);
 const pulseCol = new Float32Array(3 * MAX_PULSES);
@@ -145,10 +228,25 @@ const pulses = [];   // { e, t0 }
 const pGeo = new THREE.BufferGeometry();
 pGeo.setAttribute('position', new THREE.BufferAttribute(pulsePos, 3));
 pGeo.setAttribute('color', new THREE.BufferAttribute(pulseCol, 3));
-scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({
-  size: 0.045, map: GLOW, vertexColors: true, transparent: true,
-  depthWrite: false, blending: THREE.AdditiveBlending,
-})));
+const pulseMat = new THREE.ShaderMaterial({
+  uniforms: { uPx: { value: 4 } },
+  vertexShader: `
+    attribute vec3 color; uniform float uPx; varying vec3 vColor;
+    void main() {
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = uPx; vColor = color;
+    }`,
+  fragmentShader: `
+    varying vec3 vColor;
+    void main() {
+      float r = length(gl_PointCoord * 2.0 - 1.0);
+      if (r > 1.0) discard;
+      float core = 1.0 - smoothstep(0.25, 0.45, r), glow = 1.0 - smoothstep(0.3, 1.0, r);
+      gl_FragColor = vec4(mix(vColor, vec3(1.0), core * 0.7), core + 0.35 * glow);
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+});
+scene.add(new THREE.Points(pGeo, pulseMat));
 
 // сломанный нейрон — красный перечёркнутый круг
 const lesionSprite = (() => {
@@ -157,9 +255,9 @@ const lesionSprite = (() => {
   g.strokeStyle = '#ff4d5e'; g.lineWidth = 12; g.lineCap = 'round';
   g.beginPath(); g.arc(64, 64, 50, 0, 6.283); g.stroke();
   g.beginPath(); g.moveTo(34, 34); g.lineTo(94, 94); g.moveTo(94, 34); g.lineTo(34, 94); g.stroke();
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false, transparent: true }));
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false, transparent: true, sizeAttenuation: false }));
   sp.position.fromArray(npos, 3 * D.lesion.local);
-  sp.scale.set(0.16, 0.16, 1);
+  sp.scale.set(0.055, 0.055, 1);  // доля высоты экрана — не раздувается при зуме
   sp.visible = false;
   scene.add(sp);
   return sp;
@@ -329,6 +427,7 @@ function start(stim) {
   const data = D.scenarios[key];
   flash.fill(0); seen.fill(0); pulses.length = 0;
   play = { key, stim, data, t0: performance.now(), ptr: 0, nSeen: 0, done: false };
+  setInvolved([...new Set(data.n)].concat(data.stim));
   camGoal = VIEW_ZOOM;
   clearTimeout(idleTimer);
   $('result').classList.add('hidden');
@@ -347,6 +446,7 @@ function finish() {
     setStatus('down', 'Выбери, чем угостить муху');
     document.querySelectorAll('.stim').forEach(b => b.classList.remove('active'));
     for (const m of Object.values(foods)) m.visible = false;
+    setInvolved(null);
     play = null;
   }, IDLE_RESET_MS);
 }
@@ -359,9 +459,13 @@ function showResult(stim, s) {
   } else if (s.outcome === 'weak') {
     icon = 'hurt'; title = 'Почти не ест'; text = 'Сломан всего один нейрон из 138 639';
   } else if (stim === 'bitter') {
-    icon = 'yuck'; title = 'Фу! Не буду'; text = 'Горький сигнал не дошёл до хоботка';
+    icon = 'yuck'; title = 'Фу! Не буду';
+    text = lesionOn ? 'Сломанный нейрон — на сладком пути. Горькое идёт другим путём, поэтому ничего не изменилось'
+      : 'Горький сигнал не дошёл до хоботка';
   } else if (stim === 'water') {
-    icon = 'calm'; title = 'Пить не хочет'; text = 'Вода для мухи слабее, чем сахар';
+    icon = 'calm'; title = 'Пить не хочет';
+    text = lesionOn ? 'Сломанный нейрон — на сладком пути. Вода идёт другим путём, поэтому ничего не изменилось'
+      : 'Вода для мухи слабее, чем сахар';
   } else {
     icon = 'none'; title = 'Не ест'; text = 'Сигнал не дошёл до хоботка';
   }
@@ -406,6 +510,7 @@ function resize(renderer, cv) {
 }
 
 let gain = 1;
+const tmp3 = [0, 0, 0];
 function step(now) {
   // затухание — по реальному времени, даже если кадры редкие
   const dtDecay = Math.min(1000, now - lastFrame);
@@ -439,16 +544,10 @@ function step(now) {
   }
   nGeo.attributes.flash.needsUpdate = true;
 
-  // провода
-  for (let e = 0; e < E; e++) {
-    const a = WIRES[e][0];
-    const v = 0.008 + 0.3 * gain * flash[a] * edgeW[e];
-    for (let k = 0; k < 3; k++) {
-      edgeCol[6 * e + k] = edgeBase[3 * e + k] * v;
-      edgeCol[6 * e + 3 + k] = edgeBase[3 * e + k] * v * 0.6;
-    }
-  }
-  edgeGeo.attributes.color.needsUpdate = true;
+  // нити читают активность из текстуры
+  for (let i = 0; i < N; i++) flashBytes[4 * i] = Math.min(255, Math.round(flash[i] * 255));
+  flashTex.needsUpdate = true;
+  fiberMat.uniforms.uGain.value = 0.3 + 0.7 * gain;
 
   // импульсы
   let alive = 0;
@@ -456,9 +555,10 @@ function step(now) {
     const u = (now - pulses[p].t0) / PULSE_MS;
     if (u >= 1) continue;
     const e = pulses[p].e;
+    bez(e, WIRES[e][0], WIRES[e][1], u, tmp3);
     for (let k = 0; k < 3; k++) {
-      pulsePos[3 * alive + k] = edgePos[6 * e + k] + (edgePos[6 * e + 3 + k] - edgePos[6 * e + k]) * u;
-      pulseCol[3 * alive + k] = edgeBase[3 * e + k] * 0.45 * (1 - u * 0.5);
+      pulsePos[3 * alive + k] = tmp3[k];
+      pulseCol[3 * alive + k] = edgeBase[3 * e + k] * (1 - u * 0.6);
     }
     pulses[alive++] = pulses[p];
   }
@@ -492,10 +592,14 @@ function drawBrain(now, dtReal) {
     cam.target.z + dist * Math.cos(yaw) * Math.cos(pitch));
   camera.lookAt(cam.target);
   // макет может сдвинуть кадр, чтобы мозг не прятался под панелями
-  const shift = (window.STAND_OPTS && window.STAND_OPTS.shiftX) || 0;
-  if (shift) camera.setViewOffset(w, h, w * shift, 0, w, h); else camera.clearViewOffset();
+  const o = window.STAND_OPTS || {};
+  if (o.shiftX || o.shiftY) camera.setViewOffset(w, h, w * (o.shiftX || 0), h * (o.shiftY || 0), w, h);
+  else camera.clearViewOffset();
   camera.updateProjectionMatrix();
   nMat.uniforms.uScale.value = h * dpr / (2 * tanHalf);
+  nMat.uniforms.uDpr.value = dpr;
+  dustMat.uniforms.uPx.value = 1.5 * dpr;
+  pulseMat.uniforms.uPx.value = 5 * dpr;
   brainR.render(scene, camera);
   drawTags(w, h);
 }
